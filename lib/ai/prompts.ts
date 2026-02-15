@@ -215,11 +215,14 @@ For "error_injection" exercises:
 
 For "code_recreation" exercises (FILL-IN-THE-BLANK format):
 - Pick a meaningful code snippet (function, component, or logic block) from their codebase
-- Create a version with 3-6 key parts replaced by numbered blanks: ___BLANK_1___, ___BLANK_2___, etc.
+- Create a version with key parts replaced by numbered blanks: ___BLANK_1___, ___BLANK_2___, etc.
 - Set modifiedCode to the code WITH blanks (this is what the user sees)
 - Set originalCode to an EMPTY STRING ""
 - Set expectedAnswer to a JSON object mapping blank numbers to their correct values, e.g.: {"1": "useState", "2": "count", "3": "setCount", "4": "0"}
-- Blanks should target important concepts: variable names, function calls, keywords, operators, values
+- BLANK DIFFICULTY SCALING (based on skill level "${skillLevel}"):
+  - If beginner: Use ONLY 2-3 blanks. Blank out well-known framework APIs and common patterns (e.g., "useState", "useEffect", "import", "export default", "async", "await", "console.log", "return"). Do NOT blank out project-specific variable names or custom function names. The blanks should be guessable from general programming knowledge alone.
+  - If intermediate: Use 3-4 blanks. Mix of common framework APIs and some project-specific logic. At least half the blanks should be common concepts.
+  - If advanced: Use 4-6 blanks. Include project-specific variables, logic patterns, subtle operators, and nuanced details.
 - Do NOT blank out trivial syntax like semicolons or brackets — focus on meaningful code elements
 - The prompt should say "Fill in the blanks to complete this code snippet"
 - Hints should give clues about what each blank should contain without revealing the answer
@@ -239,13 +242,15 @@ For "mcq" (multiple choice) exercises:
 - Create questions about concepts from their codebase
 - CRITICAL: You MUST set the "options" field to an array of EXACTLY 4 strings
 - CRITICAL: You MUST set "correctOptionIndex" to a number 0-3 (0-based index of the correct option)
-- Set "explanation" to explain why the correct answer is right and others are wrong
+- CRITICAL: You MUST set "expectedAnswer" to the EXACT TEXT of the correct option string (copy it verbatim from the options array)
+- Set "explanation" to explain why the correct answer is right and others are wrong. IMPORTANT: Reference options as A, B, C, D (letters), NOT 1, 2, 3, 4 (numbers). For example: "A is correct because..." or "Option C is wrong because..."
 - The prompt should be the question text
 - Set originalCode to the relevant code snippet if applicable (or empty string if not needed)
 - Example format:
   "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
   "correctOptionIndex": 1,
-  "explanation": "Option B is correct because..."
+  "expectedAnswer": "Option B text",
+  "explanation": "B is correct because... Option A is wrong because..."
 
 For "parsons" exercises (Code Ordering):
 - Pick a meaningful code snippet (5-10 lines) from their codebase — a function body, a component return, or a logic block
@@ -274,7 +279,8 @@ For "output_prediction" exercises:
 - Set originalCode to the code snippet being analyzed
 - CRITICAL: You MUST set the "options" field to an array of EXACTLY 4 strings representing possible outputs
 - CRITICAL: You MUST set "correctOptionIndex" to a number 0-3 (0-based index of the correct output)
-- Set "explanation" to explain the execution flow step-by-step showing why the correct output is produced
+- CRITICAL: You MUST set "expectedAnswer" to the EXACT TEXT of the correct option string (copy it verbatim from the options array)
+- Set "explanation" to explain the execution flow step-by-step showing why the correct output is produced. IMPORTANT: Reference options as A, B, C, D (letters), NOT 1, 2, 3, 4 (numbers)
 - Make the wrong options realistic — common mistakes like off-by-one errors, wrong operator precedence, etc.
 - The prompt should be something like "What will the following code output?" or "What is the final value of 'result'?"
 - Focus on concepts like: loop behavior, conditional logic, array operations, string manipulation, scope/closure
