@@ -15,7 +15,7 @@ export function parseGitHubUrl(input: string): ParsedGitHubUrl | null {
 
   // Try full URL patterns
   const urlPatterns = [
-    /(?:https?:\/\/)?github\.com\/([^/]+)\/([^/.]+?)(?:\.git)?(?:\/|$)/,
+    /(?:https?:\/\/)?github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/|$)/,
   ];
 
   for (const pattern of urlPatterns) {
@@ -46,4 +46,12 @@ export function buildGitHubUrl(owner: string, repo: string): string {
  */
 export function isValidGitHubInput(input: string): boolean {
   return parseGitHubUrl(input) !== null;
+}
+
+/**
+ * Validate that a GitHub owner or repo name matches allowed characters.
+ * GitHub allows alphanumeric, hyphens, underscores, and dots.
+ */
+export function isValidGitHubName(name: string): boolean {
+  return /^[a-zA-Z0-9._-]+$/.test(name) && name.length > 0 && name.length <= 100;
 }
