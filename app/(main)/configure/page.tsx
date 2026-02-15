@@ -68,8 +68,8 @@ export default function ConfigurePage() {
   const noneSelected = selectedPaths.size === 0;
 
   // Group excluded files by reason
-  const excludedByReason = useMemo(() => {
-    if (!treeData?.excludedFiles) return {};
+  const excludedByReason = useMemo((): Record<FilterReason, TreePreviewFile[]> => {
+    if (!treeData?.excludedFiles) return { too_large: [], binary_file: [], ignored_directory: [], unsupported_extension: [], non_file: [] };
     const groups: Record<FilterReason, TreePreviewFile[]> = {
       too_large: [],
       binary_file: [],

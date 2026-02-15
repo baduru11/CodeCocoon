@@ -8,22 +8,25 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { Link2, GitBranch, Upload, ArrowRight, Loader2, FileCode, X, AlertCircle } from "lucide-react";
+import { useProjectSessions } from "@/hooks/use-project-sessions";
+import { Link2, GitBranch, Upload, ArrowRight, Loader2, FileCode, X, AlertCircle, Search } from "lucide-react";
 import Link from "next/link";
 import type { FetchRepoResult, GitHubRepo, FetchTreeResult } from "@/types/github";
+
 
 export default function ConnectPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-  const { setValue: setTreeData } = useLocalStorage<FetchTreeResult | null>("treeData", null);
-  const { value: treeData } = useLocalStorage<FetchTreeResult | null>("treeData", null);
+  const { value: treeData, setValue: setTreeData, removeValue: clearTreeData } = useLocalStorage<FetchTreeResult | null>("treeData", null);
   const { setValue: setProjectData } = useLocalStorage<FetchRepoResult | null>("projectData", null);
+  const { sessions } = useProjectSessions();
 
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(false);
+  const [repoSearch, setRepoSearch] = useState("");
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [pendingUrl, setPendingUrl] = useState("");
 
@@ -43,9 +46,17 @@ export default function ConnectPage() {
   };
 
   const checkDuplicate = (urlOrOwnerRepo: string): boolean => {
-    if (!treeData) return false;
     const repoName = parseRepoName(urlOrOwnerRepo);
-    return repoName === treeData.repoName;
+    if (!repoName) return false;
+    // Check if this repo exists in history (completed analyses)
+    const inHistory = sessions.some((s) => s.repoName === repoName);
+    if (inHistory) return true;
+    // Check current treeData — only if there's no stale state
+    if (treeData?.repoName === repoName) {
+      // treeData matches but no session exists — stale, clear it
+      clearTreeData();
+    }
+    return false;
   };
 
   const handleFetchUrl = async (skipDuplicateCheck = false) => {
@@ -186,7 +197,7 @@ export default function ConnectPage() {
               <div className="flex-1">
                 <p className="font-bold mb-3">You've already analyzed this repo.</p>
                 <div className="flex gap-2">
-                  <Link href="/configure">
+                  <Link href="/results">
                     <Button variant="secondary" size="sm">
                       View Previous Results
                     </Button>
@@ -196,7 +207,14 @@ export default function ConnectPage() {
                     size="sm"
                     onClick={() => {
                       setShowDuplicateWarning(false);
-                      handleFetchUrl(true);
+                      // pendingUrl is either a full URL or "owner/repo" from repo list
+                      const parsed = parseRepoName(pendingUrl);
+                      if (parsed) {
+                        const [owner, repo] = parsed.split("/");
+                        handleFetchRepo(owner, repo, true);
+                      } else {
+                        handleFetchUrl(true);
+                      }
                     }}
                   >
                     Analyze Again
@@ -265,8 +283,29 @@ export default function ConnectPage() {
                 No public repositories found.
               </p>
             ) : (
+              <>
+              {repos.length > 6 && (
+                <div className="relative mb-3">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                  <Input
+                    placeholder="Search repositories..."
+                    value={repoSearch}
+                    onChange={(e) => setRepoSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto">
-                {repos.map((repo) => (
+                {repos.filter((repo) => {
+                  if (!repoSearch.trim()) return true;
+                  const q = repoSearch.toLowerCase();
+                  return (
+                    repo.full_name.toLowerCase().includes(q) ||
+                    repo.name.toLowerCase().includes(q) ||
+                    (repo.description?.toLowerCase().includes(q) ?? false) ||
+                    (repo.language?.toLowerCase().includes(q) ?? false)
+                  );
+                }).map((repo) => (
                   <button
                     key={repo.id}
                     onClick={() => handleFetchRepo(repo.owner.login, repo.name, false)}
@@ -279,11 +318,11 @@ export default function ConnectPage() {
                     )}
                     <div className="flex items-center gap-2 mt-2">
                       {repo.language && <Badge variant="secondary">{repo.language}</Badge>}
-                      {repo.private && <Badge variant="warning">Private</Badge>}
                     </div>
                   </button>
                 ))}
               </div>
+              </>
             )}
           </CardContent>
         </Card>
