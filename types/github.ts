@@ -43,6 +43,22 @@ export interface ParsedGitHubUrl {
   repo: string;
 }
 
+// Why a file was filtered
+export type FilterReason =
+  | "too_large"
+  | "binary_file"
+  | "ignored_directory"
+  | "unsupported_extension"
+  | "non_file";
+
+// Summary of filtering for UI display
+export interface FilterSummary {
+  totalScanned: number;
+  totalIncluded: number;
+  totalExcluded: number;
+  excludedByReason: Record<FilterReason, number>;
+}
+
 export interface FetchRepoResult {
   files: RepoFile[];
   repoName: string;
@@ -58,16 +74,21 @@ export interface TreePreviewFile {
   size: number;
   language: string;
   excluded: boolean;
+  filterReason?: FilterReason; // Why this file was filtered (if excluded)
+  filterDetails?: string; // Human-readable explanation
 }
 
 export interface FetchTreeResult {
   files: TreePreviewFile[];
+  excludedFiles: TreePreviewFile[]; // Files that were filtered out
   repoName: string;
   owner: string;
   repo: string;
   totalFiles: number;
+  totalExcludedFiles: number; // Count of excluded files
   totalSize: number;
   languages: Record<string, number>;
+  filterSummary: FilterSummary; // Summary of filtering
 }
 
 export interface ProcessConfig {

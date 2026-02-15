@@ -7,13 +7,15 @@ import type {
   TreePreviewFile,
   GitHubTree,
 } from "@/types/github";
-import { filterSourceFiles, getLanguageStats } from "./filter";
+import { filterSourceFiles, filterSourceFilesWithMetadata, getLanguageStats } from "./filter";
 import { getLanguageFromExtension, getFileExtension } from "@/lib/utils";
 import {
   MAX_FILES_TO_FETCH,
   MAX_TOTAL_CONTENT_BYTES,
   GITHUB_BATCH_CONCURRENCY,
 } from "@/lib/constants";
+
+const MAX_EXCLUDED_TO_RETURN = 1000;
 
 interface FetchOptions {
   token?: string;
@@ -249,8 +251,10 @@ async function fetchRepoTreeWithClient(
   const maxFiles = options.maxFiles || MAX_FILES_TO_FETCH;
 
   const tree = await fetchTree(octokit, owner, repo, branch);
-  const sourceFiles = filterSourceFiles(tree.tree);
-  const limited = sourceFiles.slice(0, maxFiles);
+  const filterResult = filterSourceFilesWithMetadata(tree.tree);
+
+  const limited = filterResult.included.slice(0, maxFiles);
+  const limitedExcluded = filterResult.excluded.slice(0, MAX_EXCLUDED_TO_RETURN);
 
   const files: TreePreviewFile[] = limited.map((item) => {
     const ext = getFileExtension(item.path);
@@ -263,6 +267,19 @@ async function fetchRepoTreeWithClient(
     };
   });
 
+  const excludedFiles: TreePreviewFile[] = limitedExcluded.map((item) => {
+    const ext = getFileExtension(item.path);
+    return {
+      path: item.path,
+      sha: item.sha,
+      size: item.size || 0,
+      language: getLanguageFromExtension(ext),
+      excluded: true,
+      filterReason: item.filterReason,
+      filterDetails: item.filterDetails,
+    };
+  });
+
   const languages = getLanguageStats(
     files.map((f) => ({ path: f.path, size: f.size }))
   );
@@ -271,12 +288,15 @@ async function fetchRepoTreeWithClient(
 
   return {
     files,
+    excludedFiles,
     repoName: `${owner}/${repo}`,
     owner,
     repo,
     totalFiles: files.length,
+    totalExcludedFiles: filterResult.excluded.length,
     totalSize,
     languages,
+    filterSummary: filterResult.summary,
   };
 }
 
