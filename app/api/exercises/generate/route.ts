@@ -6,13 +6,14 @@ import type { RepoFile } from "@/types/github";
 
 export async function POST(request: Request) {
   try {
-    const { files, skillLevel, types } = (await request.json()) as {
+    const body = (await request.json()) as {
       files: RepoFile[];
       skillLevel: string;
-      types: string[];
+      types?: string[];
+      exerciseTypes?: string[];
     };
 
-    if (!files || files.length === 0) {
+    if (!body.files || body.files.length === 0) {
       return NextResponse.json(
         { error: "Files are required to generate exercises" },
         { status: 400 }
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     }
 
     const ai = new GeminiProvider();
-    const exerciseTypes = types || [
+    const exerciseTypes = body.types || body.exerciseTypes || [
       "error_injection",
       "code_recreation",
       "code_explanation",
@@ -32,8 +33,8 @@ export async function POST(request: Request) {
         {
           role: "user",
           content: PROMPTS.generateExercises(
-            files,
-            skillLevel || "beginner",
+            body.files,
+            body.skillLevel || "beginner",
             exerciseTypes
           ),
         },
@@ -43,7 +44,14 @@ export async function POST(request: Request) {
       maxTokens: 16384,
     });
 
-    const { exercises } = JSON.parse(result.content);
+    let exercises: unknown[];
+    try {
+      const parsed = JSON.parse(result.content);
+      exercises = Array.isArray(parsed) ? parsed : (parsed.exercises ?? []);
+    } catch {
+      console.error("Failed to parse exercises JSON, raw length:", result.content.length);
+      exercises = [];
+    }
 
     return NextResponse.json({ exercises });
   } catch (error) {

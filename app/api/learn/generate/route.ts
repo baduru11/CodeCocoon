@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     const ai = new GeminiProvider();
 
     // Create code examples from files for context
-    const codeExamples = files
+    const codeExamples = (files || [])
       .slice(0, 8)
       .map((f) => `// ${f.path}\n${f.content.slice(0, 500)}`)
       .join("\n\n");
@@ -44,11 +44,18 @@ export async function POST(request: Request) {
       maxTokens: 16384,
     });
 
-    const learningPath = JSON.parse(result.content);
+    let learningPath: Record<string, unknown>;
+    try {
+      learningPath = JSON.parse(result.content);
+    } catch {
+      console.error("Failed to parse learning path JSON, raw length:", result.content.length);
+      return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
+    }
 
     // Add computed fields
-    const totalLessons = learningPath.modules.reduce(
-      (sum: number, m: { lessons: unknown[] }) => sum + m.lessons.length,
+    const modules = Array.isArray(learningPath.modules) ? learningPath.modules : [];
+    const totalLessons = modules.reduce(
+      (sum: number, m: { lessons?: unknown[] }) => sum + (m.lessons?.length ?? 0),
       0
     );
 

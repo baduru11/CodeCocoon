@@ -34,7 +34,8 @@ export async function POST(request: Request) {
             responseFormat: "json",
             responseSchema: GeminiSchemas.techStack,
           });
-          const techStack = JSON.parse(techStackResult.content);
+          let techStack: unknown;
+          try { techStack = JSON.parse(techStackResult.content); } catch { techStack = { languages: [], frameworks: [] }; }
           send("tech_stack", techStack);
 
           // 2. Architecture
@@ -45,17 +46,19 @@ export async function POST(request: Request) {
             responseFormat: "json",
             responseSchema: GeminiSchemas.architecture,
           });
-           const architecture = JSON.parse(archResult.content);
-           send("architecture", architecture);
+          let architecture: unknown;
+          try { architecture = JSON.parse(archResult.content); } catch { architecture = { pattern: "Unknown", description: "", layers: [], entryPoints: [] }; }
+          send("architecture", architecture);
 
-           // 3. Key Files
-           send("status", "Identifying key files...");
-           const keyFilesResult = await ai.generate({
-             model: GEMINI_MODELS.fast,
-             messages: [{ role: "user", content: PROMPTS.identifyKeyFiles(files) }],
-             responseFormat: "json",
-           });
-           const keyFiles = JSON.parse(keyFilesResult.content);
+          // 3. Key Files
+          send("status", "Identifying key files...");
+          const keyFilesResult = await ai.generate({
+            model: GEMINI_MODELS.fast,
+            messages: [{ role: "user", content: PROMPTS.identifyKeyFiles(files) }],
+            responseFormat: "json",
+          });
+          let keyFiles: unknown;
+          try { keyFiles = JSON.parse(keyFilesResult.content); } catch { keyFiles = []; }
            send("key_files", keyFiles);
 
            // 4. Summary

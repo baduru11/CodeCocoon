@@ -28,7 +28,14 @@ export async function POST(request: Request) {
       responseSchema: GeminiSchemas.quizQuestions,
     });
 
-    const { questions } = JSON.parse(result.content);
+    let questions: unknown[];
+    try {
+      const parsed = JSON.parse(result.content);
+      questions = Array.isArray(parsed) ? parsed : (parsed.questions ?? []);
+    } catch {
+      console.error("Failed to parse questions JSON, raw length:", result.content.length);
+      return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
+    }
 
     return NextResponse.json({ questions });
   } catch (error) {

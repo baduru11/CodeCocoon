@@ -55,13 +55,17 @@ export async function POST(request: Request) {
     }
 
     // Create project
+    const resolvedUrl = githubOwner && githubRepo
+      ? (githubUrl || `https://github.com/${githubOwner}/${githubRepo}`)
+      : githubUrl || null;
+
     const projectId = await saveProject(supabase, {
       user_id: user.id,
       name: repoName,
       source_type: "github",
-      github_url: githubUrl || `https://github.com/${githubOwner}/${githubRepo}`,
-      github_owner: githubOwner,
-      github_repo: githubRepo,
+      github_url: resolvedUrl,
+      github_owner: githubOwner || null,
+      github_repo: githubRepo || null,
     });
 
     // Save files (skip content to save DB space — just metadata)

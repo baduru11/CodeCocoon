@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     });
 
     const correctCount = evaluatedAnswers.filter((a) => a.isCorrect).length;
-    const score = Math.round((correctCount / questions.length) * 100);
+    const score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
 
     // Determine skill level
     let skillLevel: "beginner" | "intermediate" | "advanced";

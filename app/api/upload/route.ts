@@ -3,6 +3,9 @@ import type { RepoFile } from "@/types/github";
 import { getLanguageFromExtension, getFileExtension } from "@/lib/utils";
 import { BINARY_EXTENSIONS, MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 
+const MAX_UPLOAD_FILES = 200;
+const MAX_TOTAL_UPLOAD_BYTES = 10_000_000; // 10MB
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -11,6 +14,13 @@ export async function POST(request: Request) {
     let totalSize = 0;
 
     const entries = formData.getAll("files");
+
+    if (entries.length > MAX_UPLOAD_FILES) {
+      return NextResponse.json(
+        { error: `Too many files. Maximum ${MAX_UPLOAD_FILES} allowed.` },
+        { status: 400 }
+      );
+    }
 
     for (const entry of entries) {
       if (!(entry instanceof File)) continue;
@@ -22,6 +32,9 @@ export async function POST(request: Request) {
 
       // Skip files that are too large
       if (entry.size > MAX_FILE_SIZE_BYTES) continue;
+
+      // Enforce total upload size limit
+      if (totalSize + entry.size > MAX_TOTAL_UPLOAD_BYTES) break;
 
       const content = await entry.text();
       const language = getLanguageFromExtension(ext);

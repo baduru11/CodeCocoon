@@ -41,6 +41,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ exists: false });
   } catch (error) {
     console.error("Failed to check duplicate:", error);
-    return NextResponse.json({ exists: false });
+    return NextResponse.json(
+      { error: "Failed to check for duplicate project" },
+      { status: 500 }
+    );
   }
 }
