@@ -23,8 +23,10 @@ interface SavedProject {
   id: string;
   repoName: string;
   date: string;
-  qualityScore: number;
   techStack: string[];
+  fileCount: number;
+  status: string;
+  githubUrl: string | null;
 }
 
 export default function DashboardPage() {
@@ -119,33 +121,32 @@ export default function DashboardPage() {
               <button
                 key={project.id}
                 onClick={() => {
-                  // Navigate to results — saved projects are viewed from results page
                   router.push("/results");
                 }}
                 className="text-left p-4 bg-surface border-3 border-foreground rounded-[4px] shadow-[3px_3px_0px_0px_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
               >
                 <div className="font-bold text-sm mb-2 truncate">{project.repoName}</div>
-                <div className="flex items-center gap-2 mb-3 text-xs text-muted">
+                <div className="flex items-center gap-2 mb-2 text-xs text-muted">
                   <Calendar size={12} />
                   {new Date(project.date).toLocaleDateString()}
-                </div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Badge variant="secondary" className="text-xs">
-                    Score: {project.qualityScore}
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {project.techStack.slice(0, 3).map((tech) => (
-                    <Badge key={tech} variant="primary" className="text-xs">
-                      {tech}
-                    </Badge>
-                  ))}
-                  {project.techStack.length > 3 && (
-                    <Badge variant="primary" className="text-xs">
-                      +{project.techStack.length - 3}
-                    </Badge>
+                  {project.fileCount > 0 && (
+                    <span className="ml-1">· {project.fileCount} files</span>
                   )}
                 </div>
+                {(project.techStack ?? []).length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {project.techStack.slice(0, 4).map((tech) => (
+                      <Badge key={tech} variant="primary" className="text-xs">
+                        {tech}
+                      </Badge>
+                    ))}
+                    {project.techStack.length > 4 && (
+                      <Badge variant="primary" className="text-xs">
+                        +{project.techStack.length - 4}
+                      </Badge>
+                    )}
+                  </div>
+                )}
               </button>
             ))}
           </div>

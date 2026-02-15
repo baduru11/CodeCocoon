@@ -56,12 +56,22 @@ export default function ResultsPage() {
     setSaving(true);
     setSaveError("");
     try {
+      const parts = activeSession.repoName.split("/");
+      const owner = parts.length >= 2 ? parts[0] : undefined;
+      const repo = parts.length >= 2 ? parts[1] : undefined;
       const res = await fetch("/api/projects/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectData: activeSession.projectData,
-          analysisData: activeSession.analysisData,
+          repoName: activeSession.repoName,
+          githubOwner: owner,
+          githubRepo: repo,
+          githubUrl: activeSession.repoUrl,
+          files: activeSession.projectData.files,
+          analysis: activeSession.analysisData,
+          learningPath: activeSession.learningPath,
+          exercises: activeSession.exercises,
+          skillLevel: activeSession.skillLevel,
         }),
       });
       if (!res.ok) {

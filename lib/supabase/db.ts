@@ -6,6 +6,7 @@ import type { Exercise } from "@/types/exercise";
 import type { Project } from "@/types/database";
 
 interface SaveProjectData {
+  user_id: string;
   name: string;
   source_type: "github" | "upload";
   github_url?: string | null;
@@ -23,6 +24,7 @@ export async function saveProject(
   const { data: project, error } = await supabase
     .from("projects")
     .insert({
+      user_id: data.user_id,
       name: data.name,
       source_type: data.source_type,
       github_url: data.github_url ?? null,

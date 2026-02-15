@@ -56,6 +56,7 @@ export async function POST(request: Request) {
 
     // Create project
     const projectId = await saveProject(supabase, {
+      user_id: user.id,
       name: repoName,
       source_type: "github",
       github_url: githubUrl || `https://github.com/${githubOwner}/${githubRepo}`,

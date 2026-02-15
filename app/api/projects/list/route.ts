@@ -14,7 +14,38 @@ export async function GET() {
       );
     }
 
-    const projects = await getUserProjects(supabase);
+    const rawProjects = await getUserProjects(supabase);
+
+    // Transform DB rows into the shape the dashboard expects
+    const projects = rawProjects.map((p) => {
+      const analysis = p.analysis_results?.[0];
+      const techStack = analysis?.tech_stack as {
+        languages?: string[];
+        frameworks?: string[];
+        databases?: string[];
+        tools?: string[];
+        styling?: string[];
+      } | null;
+
+      // Combine all tech categories into a flat list
+      const allTech = [
+        ...(techStack?.frameworks ?? []),
+        ...(techStack?.languages ?? []),
+        ...(techStack?.databases ?? []),
+        ...(techStack?.tools ?? []),
+        ...(techStack?.styling ?? []),
+      ];
+
+      return {
+        id: p.id,
+        repoName: p.name,
+        date: p.created_at,
+        techStack: allTech,
+        fileCount: p.file_count,
+        status: p.status,
+        githubUrl: p.github_url,
+      };
+    });
 
     return NextResponse.json({ projects });
   } catch (error) {
