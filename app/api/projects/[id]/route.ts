@@ -1,0 +1,37 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { getProjectWithAllData } from "@/lib/supabase/db";
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const data = await getProjectWithAllData(supabase, id);
+
+    if (!data) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error("Failed to get project:", error);
+    const message =
+      error instanceof Error ? error.message : "Failed to get project";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
