@@ -9,9 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { cn, bytesToSize, getLanguageFromExtension, getFileExtension } from "@/lib/utils";
 import {
   Loader2, FileCode, ArrowRight, AlertTriangle, CheckSquare, Square,
-  MinusSquare,
+  MinusSquare, Filter, Info, ChevronDown, ChevronRight,
 } from "lucide-react";
-import type { FetchTreeResult, ProcessConfig, TreePreviewFile } from "@/types/github";
+import type { FetchTreeResult, ProcessConfig, TreePreviewFile, FilterReason } from "@/types/github";
 import { SKILL_LEVEL_OPTIONS, FILE_SIZE_WARNING_BYTES } from "@/lib/constants";
 
 export default function ConfigurePage() {
@@ -22,6 +22,8 @@ export default function ConfigurePage() {
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [skillLevel, setSkillLevel] = useState<ProcessConfig["skillLevel"] | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [showFiltered, setShowFiltered] = useState(false);
+  const [filterReasonFilter, setFilterReasonFilter] = useState<FilterReason | "all">("all");
 
   // Redirect if no tree data
   useEffect(() => {
@@ -65,6 +67,31 @@ export default function ConfigurePage() {
   const allSelected = sortedFiles.length > 0 && selectedPaths.size === sortedFiles.length;
   const noneSelected = selectedPaths.size === 0;
 
+  // Group excluded files by reason
+  const excludedByReason = useMemo(() => {
+    if (!treeData?.excludedFiles) return {};
+    const groups: Record<FilterReason, TreePreviewFile[]> = {
+      too_large: [],
+      binary_file: [],
+      ignored_directory: [],
+      unsupported_extension: [],
+      non_file: [],
+    };
+    for (const file of treeData.excludedFiles) {
+      if (file.filterReason) {
+        groups[file.filterReason].push(file);
+      }
+    }
+    return groups;
+  }, [treeData]);
+
+  // Filter excluded files based on selected reason
+  const filteredExcludedFiles = useMemo(() => {
+    if (!treeData?.excludedFiles) return [];
+    if (filterReasonFilter === "all") return treeData.excludedFiles;
+    return treeData.excludedFiles.filter((f) => f.filterReason === filterReasonFilter);
+  }, [treeData, filterReasonFilter]);
+
   const toggleFile = (path: string) => {
     setSelectedPaths((prev) => {
       const next = new Set(prev);
@@ -83,6 +110,51 @@ export default function ConfigurePage() {
     } else {
       setSelectedPaths(new Set(sortedFiles.map((f) => f.path)));
     }
+  };
+
+  const includeFilteredFile = (file: TreePreviewFile) => {
+    setSelectedPaths((prev) => {
+      const next = new Set(prev);
+      next.add(file.path);
+      return next;
+    });
+  };
+
+  const includeAllFiltered = () => {
+    if (!treeData?.excludedFiles) return;
+    const filesToInclude = filterReasonFilter === "all"
+      ? treeData.excludedFiles
+      : treeData.excludedFiles.filter((f) => f.filterReason === filterReasonFilter);
+
+    setSelectedPaths((prev) => {
+      const next = new Set(prev);
+      for (const file of filesToInclude) {
+        next.add(file.path);
+      }
+      return next;
+    });
+  };
+
+  const getFilterReasonLabel = (reason: FilterReason): string => {
+    const labels: Record<FilterReason, string> = {
+      too_large: "Too Large",
+      binary_file: "Binary File",
+      ignored_directory: "Ignored Directory",
+      unsupported_extension: "Unsupported Extension",
+      non_file: "Not a File",
+    };
+    return labels[reason];
+  };
+
+  const getFilterReasonColor = (reason: FilterReason): string => {
+    const colors: Record<FilterReason, string> = {
+      too_large: "bg-accent-yellow/10 border-accent-yellow/40 text-accent-yellow",
+      binary_file: "bg-accent-purple/10 border-accent-purple/40 text-accent-purple",
+      ignored_directory: "bg-accent-orange/10 border-accent-orange/40 text-accent-orange",
+      unsupported_extension: "bg-primary/10 border-primary/40 text-primary",
+      non_file: "bg-muted/10 border-muted/40 text-muted",
+    };
+    return colors[reason];
   };
 
   const handleSubmit = () => {
@@ -251,6 +323,170 @@ export default function ConfigurePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Filtered Files Section */}
+      {treeData.excludedFiles && treeData.excludedFiles.length > 0 && (
+        <Card className="mb-8">
+          <CardHeader>
+            <button
+              onClick={() => setShowFiltered(!showFiltered)}
+              className="flex items-center justify-between w-full text-left hover:opacity-70 transition-opacity"
+            >
+              <div className="flex items-center gap-2">
+                <Filter size={20} />
+                <CardTitle>
+                  Filtered Files ({treeData.totalExcludedFiles.toLocaleString()})
+                </CardTitle>
+                {showFiltered ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+              </div>
+            </button>
+            <CardDescription>
+              Files automatically filtered during scanning. Click to expand and review.
+            </CardDescription>
+          </CardHeader>
+
+          {showFiltered && (
+            <CardContent>
+              {/* Info Banner */}
+              <div className="mb-4 flex items-start gap-2 p-3 bg-accent-green/10 border-2 border-accent-green/30 rounded-[4px]">
+                <Info size={16} className="text-accent-green shrink-0 mt-0.5" />
+                <div className="text-xs font-medium text-foreground">
+                  <p className="mb-1">
+                    Files are filtered to help focus analysis on source code. You can include any filtered file by clicking &ldquo;Include&rdquo; below.
+                  </p>
+                  <p className="text-muted">
+                    Common filters: large files (&gt;100KB), binaries (images, fonts), generated code (node_modules, dist), and unsupported file types.
+                  </p>
+                </div>
+              </div>
+
+              {/* Filter Reason Badges */}
+              <div className="mb-4 flex flex-wrap gap-2">
+                <button
+                  onClick={() => setFilterReasonFilter("all")}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-bold border-2 rounded-[4px] transition-all",
+                    filterReasonFilter === "all"
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-surface text-foreground border-foreground/20 hover:border-foreground/50"
+                  )}
+                >
+                  All ({treeData.totalExcludedFiles.toLocaleString()})
+                </button>
+                {(Object.keys(excludedByReason) as FilterReason[]).map((reason) => {
+                  const count = excludedByReason[reason]?.length || 0;
+                  if (count === 0) return null;
+                  return (
+                    <button
+                      key={reason}
+                      onClick={() => setFilterReasonFilter(reason)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-bold border-2 rounded-[4px] transition-all",
+                        filterReasonFilter === reason
+                          ? getFilterReasonColor(reason)
+                          : "bg-surface text-foreground border-foreground/20 hover:border-foreground/50"
+                      )}
+                    >
+                      {getFilterReasonLabel(reason)} ({count.toLocaleString()})
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Bulk Action */}
+              {filteredExcludedFiles.length > 0 && (
+                <div className="mb-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={includeAllFiltered}
+                    className="gap-2"
+                  >
+                    <CheckSquare size={14} />
+                    Include All {filterReasonFilter !== "all" ? getFilterReasonLabel(filterReasonFilter) : ""} Files
+                  </Button>
+                </div>
+              )}
+
+              {/* Performance Warning */}
+              {treeData.totalExcludedFiles > 10000 && (
+                <div className="mb-4 flex items-start gap-2 p-3 bg-accent-yellow/10 border-2 border-accent-yellow/30 rounded-[4px]">
+                  <AlertTriangle size={16} className="text-accent-yellow shrink-0 mt-0.5" />
+                  <p className="text-xs font-medium text-foreground">
+                    This repository has {treeData.totalExcludedFiles.toLocaleString()} filtered files. Only the first 1,000 are shown below for performance.
+                  </p>
+                </div>
+              )}
+
+              {/* File List */}
+              <div className="max-h-[400px] overflow-y-auto space-y-1">
+                {filteredExcludedFiles.map((file) => {
+                  const isSelected = selectedPaths.has(file.path);
+                  const ext = getFileExtension(file.path);
+                  const lang = ext ? getLanguageFromExtension(ext) : "Unknown";
+
+                  return (
+                    <div
+                      key={file.path}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-[4px] border-2",
+                        isSelected
+                          ? "bg-accent-green/10 border-accent-green/40"
+                          : "bg-surface border-foreground/10"
+                      )}
+                    >
+                      <span className="font-mono text-xs truncate flex-1" title={file.path}>
+                        {file.path}
+                      </span>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {file.filterReason && (
+                          <span
+                            className={cn(
+                              "text-[10px] font-bold px-1.5 py-0.5 border-2 rounded-[2px]",
+                              getFilterReasonColor(file.filterReason)
+                            )}
+                            title={file.filterDetails}
+                          >
+                            {getFilterReasonLabel(file.filterReason)}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-bold text-muted bg-background px-1.5 py-0.5 border border-foreground/15 rounded-[2px]">
+                          {lang}
+                        </span>
+                        <span className="text-[10px] font-bold text-muted bg-background px-1.5 py-0.5 border border-foreground/15 rounded-[2px]">
+                          {bytesToSize(file.size)}
+                        </span>
+                        {isSelected ? (
+                          <button
+                            onClick={() => toggleFile(file.path)}
+                            className="text-xs font-bold text-accent-green hover:text-accent-green/70 transition-colors px-2 py-1"
+                          >
+                            Remove
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => includeFilteredFile(file)}
+                            className="text-xs font-bold text-primary hover:text-primary/70 transition-colors px-2 py-1"
+                          >
+                            Include
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {filteredExcludedFiles.length === 0 && (
+                <p className="text-center text-sm text-muted font-medium py-4">
+                  No files match the selected filter.
+                </p>
+              )}
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* Submit */}
       <div className="flex justify-center">
