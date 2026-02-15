@@ -4,20 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import {
   Loader2, LayoutDashboard, GitBranch, BookOpen, Bug,
-  ArrowRight, Layers, GraduationCap, Calendar,
+  GraduationCap, Calendar, Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import type { FetchRepoResult } from "@/types/github";
-import type { AnalysisResult } from "@/types/analysis";
-import type { AssessmentResult } from "@/types/assessment";
-import type { LearningPath } from "@/types/learning";
-import { SKILL_LEVELS } from "@/lib/constants";
+import type { FetchTreeResult } from "@/types/github";
 
 interface SavedProject {
   id: string;
@@ -32,12 +26,11 @@ interface SavedProject {
 export default function DashboardPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { value: projectData } = useLocalStorage<FetchRepoResult | null>("projectData", null);
-  const { value: analysisData } = useLocalStorage<AnalysisResult | null>("analysisData", null);
-  const { value: assessmentData } = useLocalStorage<AssessmentResult | null>("assessmentData", null);
-  const { value: learningPath } = useLocalStorage<LearningPath | null>("learningPath", null);
+  const { value: treeData, removeValue: clearTreeData } = useLocalStorage<FetchTreeResult | null>("treeData", null);
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
   const [loadingSavedProjects, setLoadingSavedProjects] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -49,7 +42,10 @@ export default function DashboardPage() {
     if (user) {
       setLoadingSavedProjects(true);
       fetch("/api/projects/list")
-        .then(r => r.json())
+        .then(r => {
+          if (!r.ok) throw new Error("Failed to load projects");
+          return r.json();
+        })
         .then(data => setSavedProjects(data.projects || []))
         .catch(err => console.error("Failed to load saved projects:", err))
         .finally(() => setLoadingSavedProjects(false));
@@ -66,11 +62,29 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  const hasProject = !!projectData;
-  const hasAnalysis = !!analysisData;
-  const hasAssessment = !!assessmentData;
-  const hasLearning = !!learningPath;
-  const level = assessmentData ? SKILL_LEVELS[assessmentData.skillLevel] : null;
+  const totalProjects = savedProjects.length;
+  const totalFiles = savedProjects.reduce((sum, p) => sum + (p.fileCount || 0), 0);
+  const allTech = [...new Set(savedProjects.flatMap((p) => p.techStack ?? []))];
+
+  const handleDeleteProject = async (id: string) => {
+    setDeletingId(id);
+    try {
+      const project = savedProjects.find((p) => p.id === id);
+      const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setSavedProjects((prev) => prev.filter((p) => p.id !== id));
+        // Clear treeData if it belongs to the deleted project
+        if (project && treeData?.repoName === project.repoName) {
+          clearTreeData();
+        }
+      }
+    } catch (err) {
+      console.error("Failed to delete project:", err);
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-12">
@@ -87,30 +101,32 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <Card className={hasProject ? "" : "opacity-50"}>
-          <CardContent className="pt-6 text-center">
-            <GitBranch size={24} className="mx-auto mb-2" />
-            <p className="font-bold text-2xl">{projectData?.fileCount || 0}</p>
-            <p className="text-xs text-muted font-bold">Files Analyzed</p>
-          </CardContent>
-        </Card>
-        <Card className={hasAnalysis ? "" : "opacity-50"}>
-          <CardContent className="pt-6 text-center">
-            <Layers size={24} className="mx-auto mb-2" />
-            <p className="font-bold text-2xl">{analysisData?.techStack?.frameworks?.length || 0}</p>
-            <p className="text-xs text-muted font-bold">Technologies</p>
-          </CardContent>
-        </Card>
-        <Card className={hasAssessment ? "" : "opacity-50"}>
-          <CardContent className="pt-6 text-center">
-            <GraduationCap size={24} className="mx-auto mb-2" />
-            <p className="font-bold text-2xl">{level ? level.emoji : "—"}</p>
-            <p className="text-xs text-muted font-bold">{level ? level.label : "Not Assessed"}</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Quick Stats — derived from saved projects */}
+      {totalProjects > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <GitBranch size={24} className="mx-auto mb-2" />
+              <p className="font-bold text-2xl">{totalProjects}</p>
+              <p className="text-xs text-muted font-bold">Projects Analyzed</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <BookOpen size={24} className="mx-auto mb-2" />
+              <p className="font-bold text-2xl">{totalFiles}</p>
+              <p className="text-xs text-muted font-bold">Total Files</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <GraduationCap size={24} className="mx-auto mb-2" />
+              <p className="font-bold text-2xl">{allTech.length}</p>
+              <p className="text-xs text-muted font-bold">Technologies</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Saved Analyses */}
       {savedProjects.length > 0 && (
@@ -118,113 +134,86 @@ export default function DashboardPage() {
           <h2 className="text-xl font-bold mb-4">Saved Analyses</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {savedProjects.map((project) => (
-              <button
+              <div
                 key={project.id}
-                onClick={() => {
-                  router.push("/results");
-                }}
-                className="text-left p-4 bg-surface border-3 border-foreground rounded-[4px] shadow-[3px_3px_0px_0px_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+                className="relative text-left p-4 bg-surface border-3 border-foreground rounded-[4px] shadow-[3px_3px_0px_0px_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
               >
-                <div className="font-bold text-sm mb-2 truncate">{project.repoName}</div>
-                <div className="flex items-center gap-2 mb-2 text-xs text-muted">
-                  <Calendar size={12} />
-                  {new Date(project.date).toLocaleDateString()}
-                  {project.fileCount > 0 && (
-                    <span className="ml-1">· {project.fileCount} files</span>
-                  )}
-                </div>
-                {(project.techStack ?? []).length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {project.techStack.slice(0, 4).map((tech) => (
-                      <Badge key={tech} variant="primary" className="text-xs">
-                        {tech}
-                      </Badge>
-                    ))}
-                    {project.techStack.length > 4 && (
-                      <Badge variant="primary" className="text-xs">
-                        +{project.techStack.length - 4}
-                      </Badge>
+                <button
+                  onClick={() => router.push("/results")}
+                  className="w-full text-left"
+                >
+                  <div className="font-bold text-sm mb-2 truncate pr-8">{project.repoName}</div>
+                  <div className="flex items-center gap-2 mb-2 text-xs text-muted">
+                    <Calendar size={12} />
+                    {new Date(project.date).toLocaleDateString()}
+                    {project.fileCount > 0 && (
+                      <span className="ml-1">· {project.fileCount} files</span>
                     )}
                   </div>
+                  {(project.techStack ?? []).length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {project.techStack.slice(0, 4).map((tech) => (
+                        <Badge key={tech} variant="primary" className="text-xs">
+                          {tech}
+                        </Badge>
+                      ))}
+                      {project.techStack.length > 4 && (
+                        <Badge variant="primary" className="text-xs">
+                          +{project.techStack.length - 4}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </button>
+                {/* Delete button */}
+                {confirmDeleteId === project.id ? (
+                  <div className="absolute top-3 right-3 flex items-center gap-1">
+                    <button
+                      onClick={() => handleDeleteProject(project.id)}
+                      disabled={deletingId === project.id}
+                      className="px-2 py-1 text-[10px] font-bold bg-red-500 text-white border-2 border-foreground rounded-[4px] shadow-[2px_2px_0px_0px_#1A1A1A] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all disabled:opacity-50"
+                    >
+                      {deletingId === project.id ? <Loader2 size={10} className="animate-spin" /> : "Delete"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="px-2 py-1 text-[10px] font-bold bg-surface border-2 border-foreground/20 rounded-[4px] hover:border-foreground transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteId(project.id)}
+                    className="absolute top-3 right-3 p-1.5 border-2 border-foreground/20 rounded-[4px] text-muted hover:text-red-500 hover:border-red-500 transition-colors"
+                    title="Delete project"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 )}
-              </button>
+              </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Project Info */}
-      {hasProject && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <GitBranch size={18} />
-              Current Project
-            </CardTitle>
-            <CardDescription>{projectData?.repoName}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {analysisData?.techStack?.frameworks?.map((f) => (
-                <Badge key={f} variant="secondary">{f}</Badge>
-              ))}
-              {analysisData?.techStack?.languages?.map((l) => (
-                <Badge key={l} variant="primary">{l}</Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Assessment Score */}
-      {hasAssessment && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <GraduationCap size={18} />
-              Skill Assessment
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Progress
-              value={assessmentData!.score}
-              label={`Score: ${assessmentData!.score}%`}
-              color={assessmentData!.score >= 70 ? "bg-accent-green" : assessmentData!.score >= 40 ? "bg-accent-yellow" : "bg-primary"}
-            />
-          </CardContent>
-        </Card>
-      )}
-
       {/* Quick Actions */}
       <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {!hasProject && (
-          <Link href="/connect">
-            <Card className="h-full hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none transition-all cursor-pointer">
-              <CardContent className="pt-6 text-center">
-                <GitBranch size={32} className="mx-auto mb-3" />
-                <p className="font-bold mb-1">Connect a Project</p>
-                <p className="text-xs text-muted">Link your GitHub repo to get started</p>
-              </CardContent>
-            </Card>
-          </Link>
-        )}
-        {hasProject && !hasAssessment && (
-          <Link href="/assess">
-            <Card className="h-full hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none transition-all cursor-pointer">
-              <CardContent className="pt-6 text-center">
-                <GraduationCap size={32} className="mx-auto mb-3" />
-                <p className="font-bold mb-1">Take Assessment</p>
-                <p className="text-xs text-muted">Find your skill level</p>
-              </CardContent>
-            </Card>
-          </Link>
-        )}
+        <Link href="/connect">
+          <Card className="h-full hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none transition-all cursor-pointer">
+            <CardContent className="pt-6 text-center">
+              <GitBranch size={32} className="mx-auto mb-3" />
+              <p className="font-bold mb-1">Analyze a Project</p>
+              <p className="text-xs text-muted">Connect a GitHub repo</p>
+            </CardContent>
+          </Card>
+        </Link>
         <Link href="/results">
           <Card className="h-full hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none transition-all cursor-pointer">
             <CardContent className="pt-6 text-center">
               <BookOpen size={32} className="mx-auto mb-3" />
-              <p className="font-bold mb-1">{hasLearning ? "View Results" : "Analyze a Project"}</p>
+              <p className="font-bold mb-1">View Results</p>
               <p className="text-xs text-muted">Analysis results & learning paths</p>
             </CardContent>
           </Card>
@@ -235,15 +224,6 @@ export default function DashboardPage() {
               <Bug size={32} className="mx-auto mb-3" />
               <p className="font-bold mb-1">Practice Exercises</p>
               <p className="text-xs text-muted">Bug hunts & code challenges</p>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/connect">
-          <Card className="h-full hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none transition-all cursor-pointer">
-            <CardContent className="pt-6 text-center">
-              <ArrowRight size={32} className="mx-auto mb-3" />
-              <p className="font-bold mb-1">Analyze New Project</p>
-              <p className="text-xs text-muted">Connect a different repo</p>
             </CardContent>
           </Card>
         </Link>
