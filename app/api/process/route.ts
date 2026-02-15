@@ -3,6 +3,7 @@ import { PROMPTS } from "@/lib/ai/prompts";
 import { GEMINI_MODELS } from "@/lib/constants";
 import { fetchContentForFiles } from "@/lib/github/fetcher";
 import { getLanguageStats } from "@/lib/github/filter";
+import { isValidGitHubName } from "@/lib/github/parser";
 import { createClient } from "@/lib/supabase/server";
 import type { RepoFile } from "@/types/github";
 
@@ -25,6 +26,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!isValidGitHubName(owner) || !isValidGitHubName(repo)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid owner or repo name" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     // Get auth token from Supabase session
     let token: string | undefined;
     try {
@@ -43,6 +51,7 @@ export async function POST(request: Request) {
 
     const ai = new GeminiProvider();
     const encoder = new TextEncoder();
+    const signal = request.signal;
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -50,6 +59,10 @@ export async function POST(request: Request) {
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ type, data })}\n\n`)
           );
+        };
+
+        const checkAborted = () => {
+          if (signal.aborted) throw new Error("Client disconnected");
         };
 
         try {
@@ -76,16 +89,39 @@ export async function POST(request: Request) {
 
           send("files_fetched", projectData);
 
-          // Step 2: Tech Stack
-          send("step_start", "tech_stack");
-          send("status", "Detecting tech stack...");
+          checkAborted();
 
-          const techStackResult = await ai.generate({
-            model: GEMINI_MODELS.fast,
-            messages: [{ role: "user", content: PROMPTS.analyzeTechStack(files) }],
-            responseFormat: "json",
-            responseSchema: GeminiSchemas.techStack,
-          });
+          // Steps 2-5: Run in parallel (all independent, all use fast model)
+          send("step_start", "tech_stack");
+          send("step_start", "architecture");
+          send("step_start", "key_files");
+          send("step_start", "summary");
+          send("status", "Analyzing codebase...");
+
+          const [techStackResult, archResult, keyFilesResult, summaryResult] =
+            await Promise.all([
+              ai.generate({
+                model: GEMINI_MODELS.fast,
+                messages: [{ role: "user", content: PROMPTS.analyzeTechStack(files) }],
+                responseFormat: "json",
+                responseSchema: GeminiSchemas.techStack,
+              }),
+              ai.generate({
+                model: GEMINI_MODELS.fast,
+                messages: [{ role: "user", content: PROMPTS.analyzeArchitecture(files) }],
+                responseFormat: "json",
+                responseSchema: GeminiSchemas.architecture,
+              }),
+              ai.generate({
+                model: GEMINI_MODELS.fast,
+                messages: [{ role: "user", content: PROMPTS.identifyKeyFiles(files) }],
+                responseFormat: "json",
+              }),
+              ai.generate({
+                model: GEMINI_MODELS.fast,
+                messages: [{ role: "user", content: PROMPTS.generateSummary(files) }],
+              }),
+            ]);
 
           let techStack: { languages?: string[]; frameworks?: string[] };
           try {
@@ -95,17 +131,6 @@ export async function POST(request: Request) {
           }
           send("tech_stack", techStack);
 
-          // Step 3: Architecture
-          send("step_start", "architecture");
-          send("status", "Analyzing architecture...");
-
-          const archResult = await ai.generate({
-            model: GEMINI_MODELS.fast,
-            messages: [{ role: "user", content: PROMPTS.analyzeArchitecture(files) }],
-            responseFormat: "json",
-            responseSchema: GeminiSchemas.architecture,
-          });
-
           let architecture: unknown;
           try {
             architecture = JSON.parse(archResult.content);
@@ -113,16 +138,6 @@ export async function POST(request: Request) {
             architecture = { pattern: "Unknown", description: "", layers: [], entryPoints: [] };
           }
           send("architecture", architecture);
-
-          // Step 4: Key Files
-          send("step_start", "key_files");
-          send("status", "Identifying key files...");
-
-          const keyFilesResult = await ai.generate({
-            model: GEMINI_MODELS.fast,
-            messages: [{ role: "user", content: PROMPTS.identifyKeyFiles(files) }],
-            responseFormat: "json",
-          });
 
           let keyFiles: unknown;
           try {
@@ -132,19 +147,14 @@ export async function POST(request: Request) {
           }
           send("key_files", keyFiles);
 
-          // Step 6: Summary
-          send("step_start", "summary");
-          send("status", "Writing summary...");
-
-          const summaryResult = await ai.generate({
-            model: GEMINI_MODELS.fast,
-            messages: [{ role: "user", content: PROMPTS.generateSummary(files) }],
-          });
           send("summary", summaryResult.content);
 
-          // Step 7: Learning Path (deep model)
+          checkAborted();
+
+          // Steps 6-7: Learning path + exercises in parallel (both use deep model)
           send("step_start", "learning_path");
-          send("status", "Generating learning path...");
+          send("step_start", "exercises");
+          send("status", "Generating learning path & exercises...");
 
           const techStackList = [
             ...(techStack.languages || []),
@@ -152,7 +162,13 @@ export async function POST(request: Request) {
           ];
           const codeExamples = files
             .slice(0, 3)
-            .map((f) => `--- ${f.path} ---\n${f.content}`)
+            .map((f) => {
+              const lines = f.content.split("\n");
+              const truncated = lines.length > 150
+                ? lines.slice(0, 150).join("\n") + "\n... (truncated)"
+                : f.content;
+              return `--- ${f.path} ---\n${truncated}`;
+            })
             .join("\n\n");
 
           const analysisContext = `Summary: ${summaryResult.content}\nArchitecture: ${JSON.stringify(architecture)}`;
@@ -163,13 +179,41 @@ export async function POST(request: Request) {
             analysisContext
           );
 
-          const learningPathResult = await ai.generate({
-            model: GEMINI_MODELS.deep,
-            messages: [{ role: "user", content: learningPathPrompt }],
-            responseFormat: "json",
-            responseSchema: GeminiSchemas.learningPath,
-            maxTokens: 32768,
-          });
+          const exerciseTypes = [
+            "error_injection",
+            "code_recreation",
+            "code_explanation",
+            "mcq",
+            "output_prediction",
+            "parsons",
+            "error_message",
+          ];
+
+          const [learningPathResult, exercisesResult] = await Promise.all([
+            ai.generate({
+              model: GEMINI_MODELS.deep,
+              messages: [{ role: "user", content: learningPathPrompt }],
+              responseFormat: "json",
+              responseSchema: GeminiSchemas.learningPath,
+              maxTokens: 32768,
+            }),
+            ai.generate({
+              model: GEMINI_MODELS.deep,
+              messages: [
+                {
+                  role: "user",
+                  content: PROMPTS.generateExercises(
+                    files,
+                    skillLevel || "beginner",
+                    exerciseTypes
+                  ),
+                },
+              ],
+              responseFormat: "json",
+              responseSchema: GeminiSchemas.exercises,
+              maxTokens: 32768,
+            }),
+          ]);
 
           let learningPath: unknown;
           try {
@@ -180,39 +224,9 @@ export async function POST(request: Request) {
           }
           send("learning_path", learningPath);
 
-          // Step 8: Exercises (deep model)
-          send("step_start", "exercises");
-          send("status", "Creating exercises...");
-
-          const exerciseTypes = [
-            "error_injection",
-            "code_recreation",
-            "code_explanation",
-            "mcq",
-            "ide_debugging",
-          ];
-
-          const exercisesResult = await ai.generate({
-            model: GEMINI_MODELS.deep,
-            messages: [
-              {
-                role: "user",
-                content: PROMPTS.generateExercises(
-                  files,
-                  skillLevel || "beginner",
-                  exerciseTypes
-                ),
-              },
-            ],
-            responseFormat: "json",
-            responseSchema: GeminiSchemas.exercises,
-            maxTokens: 32768,
-          });
-
           let exercises: unknown;
           try {
             const exercisesParsed = JSON.parse(exercisesResult.content);
-            // Gemini schema wraps in { exercises: [...] } — unwrap to flat array
             exercises = Array.isArray(exercisesParsed)
               ? exercisesParsed
               : exercisesParsed.exercises || [];
