@@ -1,17 +1,60 @@
 import type { RepoFile } from "@/types/github";
 
+const MAX_LINES_PER_FILE = 150;
+const MAX_TOTAL_CHARS = 80_000;
+
 function formatFilesForPrompt(files: RepoFile[]): string {
   return files
     .map((f) => `--- FILE: ${f.path} (${f.language}) ---\n${f.content}`)
     .join("\n\n");
 }
 
+/** Truncate each file to N lines and cap total size. */
+function formatFilesTruncated(files: RepoFile[], maxLines = MAX_LINES_PER_FILE): string {
+  let total = 0;
+  const parts: string[] = [];
+  for (const f of files) {
+    if (total >= MAX_TOTAL_CHARS) break;
+    const lines = f.content.split("\n");
+    const truncated = lines.length > maxLines
+      ? lines.slice(0, maxLines).join("\n") + `\n... (${lines.length - maxLines} more lines)`
+      : f.content;
+    const chunk = `--- FILE: ${f.path} (${f.language}) ---\n${truncated}`;
+    parts.push(chunk);
+    total += chunk.length;
+  }
+  return parts.join("\n\n");
+}
+
+/** Only imports, exports, and function/class signatures — very compact. */
+function formatFilesStructureOnly(files: RepoFile[]): string {
+  const parts: string[] = [];
+  for (const f of files) {
+    const lines = f.content.split("\n");
+    const important = lines.filter((line) => {
+      const t = line.trim();
+      return t.startsWith("import ") || t.startsWith("export ") ||
+        t.startsWith("from ") || t.startsWith("require(") ||
+        t.startsWith("function ") || t.startsWith("class ") ||
+        t.startsWith("const ") || t.startsWith("interface ") ||
+        t.startsWith("type ") || t.startsWith("enum ") ||
+        t.startsWith("def ") || t.startsWith("async ") ||
+        t.startsWith("@") || t.startsWith("module ") ||
+        t.startsWith("package ") || t.startsWith("use ");
+    });
+    if (important.length > 0) {
+      parts.push(`--- ${f.path} ---\n${important.join("\n")}`);
+    }
+  }
+  return parts.join("\n\n");
+}
+
 export const PROMPTS = {
   analyzeTechStack(files: RepoFile[]): string {
     return `You are a senior software engineer analyzing a codebase. Identify ALL technologies used.
 
-CODEBASE:
-${formatFilesForPrompt(files)}
+CODEBASE (imports and declarations):
+${formatFilesStructureOnly(files)}
 
 Analyze every file carefully. For each category:
 - languages: Programming languages used (e.g., "TypeScript", "Python")
@@ -26,8 +69,8 @@ Be specific. Don't guess — only include what's evident from the code.`;
   analyzeArchitecture(files: RepoFile[]): string {
     return `You are a senior software architect analyzing a codebase's architecture.
 
-CODEBASE:
-${formatFilesForPrompt(files)}
+CODEBASE (structure and key sections):
+${formatFilesTruncated(files, 80)}
 
 Analyze:
 1. pattern: The overall architecture pattern (e.g., "MVC", "Component-based SPA", "Serverless", "Microservices", "Monolith")
@@ -77,7 +120,7 @@ Focus on files that are critical for understanding how the app works.`;
     return `You are a senior technical writer creating documentation for a codebase. The reader used AI to generate this project and wants to understand how it works.
 
 CODEBASE:
-${formatFilesForPrompt(files)}
+${formatFilesTruncated(files)}
 
 Write an informative, objective summary (3-5 paragraphs) that explains:
 1. What this project does (its purpose and main functionality)
@@ -96,6 +139,7 @@ Explain technical terms when they first appear.`;
     return `You are a coding instructor creating a skill assessment quiz.
 
 TECH STACK: ${techStack.join(", ")}
+CURRENT LEVEL: ${skillLevel}
 TARGET LEVEL: Determine if the student is beginner, intermediate, or advanced
 
 Generate exactly 8 multiple-choice questions. Requirements:
@@ -192,7 +236,7 @@ IMPORTANT:
 
 SKILL LEVEL: ${skillLevel}
 CODEBASE:
-${formatFilesForPrompt(files.slice(0, 5))}
+${formatFilesTruncated(files.slice(0, 8))}
 
 Generate exactly 8 exercises with this distribution:
 - 1 error_injection
@@ -288,7 +332,11 @@ For "output_prediction" exercises:
 
 Make ALL exercises relevant to their actual code. Reference specific files via relatedFile.
 Difficulty should match their skill level.
-Every exercise MUST have: id (unique string), type, difficulty, title, prompt, originalCode (can be empty ""), expectedAnswer, hints (array of strings), relatedFile.`;
+Every exercise MUST have ALL of these fields:
+- id (unique string), type, difficulty, title, prompt, originalCode (can be empty ""), expectedAnswer, hints (array of strings), relatedFile
+- options (array of 4 strings for mcq/output_prediction, empty array [] for other types)
+- correctOptionIndex (0-3 for mcq/output_prediction, 0 for other types)
+- explanation (string for mcq/output_prediction, empty string "" for other types)`;
   },
 
   evaluateExerciseAnswer(

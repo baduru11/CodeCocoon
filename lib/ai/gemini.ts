@@ -2,6 +2,40 @@ import { GoogleGenAI, Type } from "@google/genai";
 import type { AIProvider, GenerateOptions, GenerateResult, StreamChunk } from "./provider";
 import { GEMINI_MODELS } from "@/lib/constants";
 
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 2000;
+
+function isRetryable(error: unknown): boolean {
+  if (error instanceof Error) {
+    const msg = error.message;
+    // Rate limit / server overload
+    if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) return true;
+    if (msg.includes("503") || msg.includes("UNAVAILABLE")) return true;
+    // Network errors (socket closed, timeout, DNS, etc.)
+    if (msg.includes("fetch failed") || msg.includes("socket") || msg.includes("ECONNRESET")) return true;
+    if (msg.includes("other side closed") || msg.includes("network")) return true;
+    // Check nested cause
+    const cause = (error as { cause?: Error }).cause;
+    if (cause instanceof Error) {
+      const causeMsg = cause.message;
+      if (causeMsg.includes("closed") || causeMsg.includes("socket") || causeMsg.includes("ECONNRESET")) return true;
+    }
+  }
+  if (typeof error === "object" && error !== null && "status" in error) {
+    const status = (error as { status: number }).status;
+    if (status === 429 || status === 503) return true;
+  }
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = (error as { code?: string }).code;
+    if (code === "UND_ERR_SOCKET" || code === "ECONNRESET" || code === "ETIMEDOUT") return true;
+  }
+  return false;
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class GeminiProvider implements AIProvider {
   name = "gemini";
   private client: GoogleGenAI;
@@ -12,75 +46,97 @@ export class GeminiProvider implements AIProvider {
     this.client = new GoogleGenAI({ apiKey: key });
   }
 
-  async generate(options: GenerateOptions): Promise<GenerateResult> {
-    const model = options.model || GEMINI_MODELS.fast;
-
-    const contents = options.messages.map((msg) => ({
-      role: msg.role === "user" ? "user" : "model",
-      parts: [{ text: msg.content }],
-    }));
-
+  private buildConfig(options: GenerateOptions) {
     const config: Record<string, unknown> = {
       temperature: options.temperature ?? 0.7,
       maxOutputTokens: options.maxTokens ?? 8192,
     };
-
     if (options.responseFormat === "json") {
       config.responseMimeType = "application/json";
       if (options.responseSchema) {
         config.responseSchema = options.responseSchema;
       }
     }
+    return config;
+  }
 
-    const response = await this.client.models.generateContent({
-      model,
-      contents,
-      config,
-    });
+  private buildContents(options: GenerateOptions) {
+    return options.messages.map((msg) => ({
+      role: msg.role === "user" ? "user" : "model",
+      parts: [{ text: msg.content }],
+    }));
+  }
 
-    return {
-      content: response.text || "",
-      usage: {
-        inputTokens: response.usageMetadata?.promptTokenCount || 0,
-        outputTokens: response.usageMetadata?.candidatesTokenCount || 0,
-      },
-    };
+  async generate(options: GenerateOptions): Promise<GenerateResult> {
+    const model = options.model || GEMINI_MODELS.fast;
+    const contents = this.buildContents(options);
+    const config = this.buildConfig(options);
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const response = await this.client.models.generateContent({
+          model,
+          contents,
+          config,
+        });
+
+        return {
+          content: response.text || "",
+          usage: {
+            inputTokens: response.usageMetadata?.promptTokenCount || 0,
+            outputTokens: response.usageMetadata?.candidatesTokenCount || 0,
+          },
+        };
+      } catch (error) {
+        if (attempt < MAX_RETRIES && isRetryable(error)) {
+          const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+          console.warn(`Gemini API rate limited (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`);
+          await sleep(delay);
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new Error("Unreachable");
   }
 
   async *generateStream(options: GenerateOptions): AsyncGenerator<StreamChunk> {
     const model = options.model || GEMINI_MODELS.fast;
+    const contents = this.buildContents(options);
+    const config = this.buildConfig(options);
 
-    const contents = options.messages.map((msg) => ({
-      role: msg.role === "user" ? "user" : "model",
-      parts: [{ text: msg.content }],
-    }));
+    let lastError: unknown = new Error("All retry attempts exhausted");
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const stream = await this.client.models.generateContentStream({
+          model,
+          contents,
+          config,
+        });
 
-    const config: Record<string, unknown> = {
-      temperature: options.temperature ?? 0.7,
-      maxOutputTokens: options.maxTokens ?? 8192,
-    };
+        for await (const chunk of stream) {
+          yield {
+            content: chunk.text || "",
+            done: false,
+          };
+        }
 
-    if (options.responseFormat === "json") {
-      config.responseMimeType = "application/json";
-      if (options.responseSchema) {
-        config.responseSchema = options.responseSchema;
+        yield { content: "", done: true };
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < MAX_RETRIES && isRetryable(error)) {
+          const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+          console.warn(`Gemini stream rate limited (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`);
+          await sleep(delay);
+          continue;
+        }
+        throw error;
       }
     }
 
-    const stream = await this.client.models.generateContentStream({
-      model,
-      contents,
-      config,
-    });
-
-    for await (const chunk of stream) {
-      yield {
-        content: chunk.text || "",
-        done: false,
-      };
-    }
-
-    yield { content: "", done: true };
+    throw lastError;
   }
 }
 
@@ -214,7 +270,7 @@ export const GeminiSchemas = {
             correctOptionIndex: { type: Type.NUMBER },
             explanation: { type: Type.STRING },
           },
-          required: ["id", "type", "difficulty", "title", "prompt", "originalCode", "expectedAnswer", "hints", "relatedFile"],
+          required: ["id", "type", "difficulty", "title", "prompt", "originalCode", "expectedAnswer", "hints", "relatedFile", "options", "correctOptionIndex", "explanation"],
         },
       },
     },
