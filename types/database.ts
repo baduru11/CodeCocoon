@@ -1,3 +1,8 @@
+import type { ExerciseType } from "./exercise";
+
+// Generic JSON type for Supabase JSONB columns
+export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
+
 export interface Profile {
   id: string;
   github_username: string | null;
@@ -34,10 +39,10 @@ export interface ProjectFile {
 export interface AnalysisResultRow {
   id: string;
   project_id: string;
-  tech_stack: Record<string, unknown> | null;
-  architecture: Record<string, unknown> | null;
-  code_quality: Record<string, unknown> | null;
-  key_files: Record<string, unknown> | null;
+  tech_stack: Json | null;
+  architecture: Json | null;
+  code_quality: Json | null;
+  key_files: Json | null;
   summary: string | null;
   created_at: string;
 }
@@ -46,8 +51,8 @@ export interface AssessmentRow {
   id: string;
   user_id: string | null;
   project_id: string | null;
-  questions: Record<string, unknown>;
-  answers: Record<string, unknown> | null;
+  questions: Json;
+  answers: Json | null;
   score: number | null;
   skill_level: "beginner" | "intermediate" | "advanced" | null;
   completed_at: string | null;
@@ -61,7 +66,7 @@ export interface LearningPathRow {
   title: string;
   description: string | null;
   skill_level: string;
-  modules: Record<string, unknown>;
+  modules: Json;
   created_at: string;
 }
 
@@ -79,22 +84,24 @@ export interface LearningProgressRow {
 export interface ExerciseRow {
   id: string;
   project_id: string;
-  type: string;
+  type: ExerciseType;
   difficulty: string;
   title: string | null;
   prompt: string;
   original_code: string | null;
   modified_code: string | null;
-  expected_answer: Record<string, unknown> | null;
-  hints: Record<string, unknown> | null;
-  options: Record<string, unknown> | null;
+  expected_answer: string | null;
+  hints: string[] | null;
+  options: string[] | null;
   correct_option_index: number | null;
   explanation: string | null;
+  related_file: string | null;
+  // Legacy columns from removed exercise types (flashcard, ide_debugging)
   flashcard_front: string | null;
   flashcard_back: string | null;
   buggy_code: string | null;
   solution_code: string | null;
-  test_cases: Record<string, unknown> | null;
+  test_cases: Json | null;
   created_at: string;
 }
 

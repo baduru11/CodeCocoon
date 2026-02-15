@@ -131,10 +131,12 @@ export const SKILL_LEVEL_OPTIONS = [
 // Exercise type configuration
 export const EXERCISE_TYPES = {
   error_injection: { label: "Bug Hunt", icon: "Bug", color: "bg-primary" },
-  code_recreation: { label: "Recreate", icon: "PenTool", color: "bg-secondary" },
+  code_recreation: { label: "Fill in Blank", icon: "PenTool", color: "bg-secondary" },
   code_explanation: { label: "Explain", icon: "MessageSquare", color: "bg-accent-purple" },
-  mcq: { label: "Multiple Choice", icon: "ListChecks", color: "bg-accent-orange" },
-  ide_debugging: { label: "Debug in IDE", icon: "Terminal", color: "bg-accent-green" },
+  mcq: { label: "Multiple Choice", icon: "MessageSquare", color: "bg-secondary" },
+  output_prediction: { label: "Predict Output", icon: "MessageSquare", color: "bg-accent-yellow" },
+  parsons: { label: "Code Order", icon: "ArrowDownUp", color: "bg-accent-green" },
+  error_message: { label: "Fix the Error", icon: "AlertTriangle", color: "bg-primary" },
 } as const;
 
 // Processing steps for the processing page

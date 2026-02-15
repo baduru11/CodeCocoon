@@ -44,11 +44,25 @@ export function saveSession(session: ProjectSession): void {
 export function deleteSession(id: string): void {
   if (!isBrowser()) return;
   try {
+    const session = getSession(id);
     const sessions = getAllSessions().filter((s) => s.id !== id);
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
     const activeId = getActiveSessionId();
     if (activeId === id) {
       localStorage.removeItem(ACTIVE_KEY);
+    }
+    // Clear treeData if it belongs to the deleted session's repo,
+    // so the duplicate check on /connect doesn't block re-analysis.
+    if (session) {
+      try {
+        const raw = localStorage.getItem("treeData");
+        if (raw) {
+          const treeData = JSON.parse(raw);
+          if (treeData?.repoName === session.repoName) {
+            localStorage.removeItem("treeData");
+          }
+        }
+      } catch { /* ignore parse errors */ }
     }
   } catch (err) {
     console.warn("Failed to delete project session:", err);

@@ -183,10 +183,9 @@ export function useProcessing() {
               );
           }
         } catch (parseError) {
-          if (
-            parseError instanceof Error &&
-            parseError.message !== "Processing failed"
-          ) {
+          // Re-throw application errors (thrown from the "error" event case above).
+          // Only swallow JSON parse failures on malformed SSE lines.
+          if (parseError instanceof SyntaxError) {
             console.warn("Failed to parse SSE event:", line);
           } else {
             throw parseError;

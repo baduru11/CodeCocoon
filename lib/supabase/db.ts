@@ -134,6 +134,7 @@ export async function saveLearningPath(
 
 /**
  * Batch insert exercises, mapping Exercise fields to DB columns.
+ * Arrays and strings are stored directly (not wrapped in objects).
  */
 export async function saveExercises(
   supabase: SupabaseClient,
@@ -148,11 +149,10 @@ export async function saveExercises(
     prompt: ex.prompt,
     original_code: ex.originalCode || null,
     modified_code: ex.modifiedCode || null,
-    expected_answer: ex.expectedAnswer ? { value: ex.expectedAnswer } : null,
-    hints: ex.hints ? { items: ex.hints } : null,
+    expected_answer: ex.expectedAnswer || null,
+    hints: ex.hints || null,
     related_file: ex.relatedFile || null,
-    // MCQ / output_prediction fields
-    options: ex.options ? { items: ex.options } : null,
+    options: ex.options || null,
     correct_option_index: ex.correctOptionIndex ?? null,
     explanation: ex.explanation || null,
   }));
@@ -206,16 +206,68 @@ export async function findDuplicateProject(
 }
 
 /**
+ * Transform a DB exercise row (snake_case) to domain Exercise (camelCase).
+ * Handles legacy wrapped formats ({items: [...]}, {value: "..."}) gracefully.
+ */
+function dbRowToExercise(row: Record<string, unknown>): Exercise {
+  const unwrapArray = (val: unknown): string[] => {
+    if (Array.isArray(val)) return val;
+    if (val && typeof val === "object" && "items" in val && Array.isArray((val as { items: unknown }).items)) {
+      return (val as { items: string[] }).items;
+    }
+    return [];
+  };
+  const unwrapString = (val: unknown): string => {
+    if (typeof val === "string") return val;
+    if (val && typeof val === "object" && "value" in val) {
+      return String((val as { value: unknown }).value);
+    }
+    return "";
+  };
+
+  return {
+    id: String(row.id ?? ""),
+    projectId: String(row.project_id ?? ""),
+    type: row.type as Exercise["type"],
+    difficulty: row.difficulty as Exercise["difficulty"],
+    title: String(row.title ?? ""),
+    prompt: String(row.prompt ?? ""),
+    originalCode: String(row.original_code ?? ""),
+    modifiedCode: row.modified_code ? String(row.modified_code) : undefined,
+    expectedAnswer: unwrapString(row.expected_answer),
+    hints: unwrapArray(row.hints),
+    relatedFile: String(row.related_file ?? ""),
+    options: row.options ? unwrapArray(row.options) : undefined,
+    correctOptionIndex: row.correct_option_index != null ? Number(row.correct_option_index) : undefined,
+    explanation: row.explanation ? String(row.explanation) : undefined,
+  };
+}
+
+/**
+ * Transform a DB analysis row (snake_case) to domain AnalysisResult (camelCase).
+ */
+function dbRowToAnalysis(row: Record<string, unknown>): AnalysisResult {
+  return {
+    techStack: (row.tech_stack as AnalysisResult["techStack"]) ?? { languages: [], frameworks: [], databases: [], tools: [], styling: [] },
+    architecture: (row.architecture as AnalysisResult["architecture"]) ?? { pattern: "", description: "", layers: [], entryPoints: [] },
+    codeQuality: (row.code_quality as AnalysisResult["codeQuality"]) ?? undefined,
+    keyFiles: (row.key_files as AnalysisResult["keyFiles"]) ?? [],
+    summary: typeof row.summary === "string" ? row.summary : "",
+  };
+}
+
+/**
  * Get a project with all related data: analysis, learning paths, and exercises.
+ * Transforms DB rows from snake_case to camelCase domain types.
  */
 export async function getProjectWithAllData(
   supabase: SupabaseClient,
   projectId: string
 ): Promise<{
   project: Project;
-  analysis: Record<string, unknown> | null;
-  learningPaths: Record<string, unknown>[];
-  exercises: Record<string, unknown>[];
+  analysis: AnalysisResult | null;
+  learningPaths: LearningPath[];
+  exercises: Exercise[];
 } | null> {
   const { data: project, error: projectError } = await supabase
     .from("projects")
@@ -247,8 +299,22 @@ export async function getProjectWithAllData(
 
   return {
     project,
-    analysis: analysisResult.data ?? null,
-    learningPaths: pathsResult.data ?? [],
-    exercises: exercisesResult.data ?? [],
+    analysis: analysisResult.data ? dbRowToAnalysis(analysisResult.data as Record<string, unknown>) : null,
+    learningPaths: (pathsResult.data ?? []).map((row) => {
+      const r = row as Record<string, unknown>;
+      const modules = (r.modules as LearningPath["modules"]) ?? [];
+      const totalLessons = modules.reduce((sum, m) => sum + (m.lessons?.length ?? 0), 0);
+      return {
+        id: String(r.id ?? ""),
+        projectId: String(r.project_id ?? projectId),
+        title: String(r.title ?? ""),
+        description: String(r.description ?? ""),
+        skillLevel: String(r.skill_level ?? ""),
+        modules,
+        totalLessons,
+        completedLessons: 0,
+      };
+    }),
+    exercises: (exercisesResult.data ?? []).map((row) => dbRowToExercise(row as Record<string, unknown>)),
   };
 }
