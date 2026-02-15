@@ -11,7 +11,6 @@ import {
   Lightbulb,
   ArrowRight,
   Eye,
-  EyeOff,
 } from "lucide-react";
 import type { Exercise } from "@/types/exercise";
 
@@ -49,6 +48,7 @@ function FillBlankExercise({ exercise, onComplete }: FillBlankExerciseProps) {
   const [results, setResults] = useState<Record<string, boolean>>({});
   const [hintsRevealed, setHintsRevealed] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [revealed, setRevealed] = useState(false);
 
   const handleSubmit = () => {
     const newResults: Record<string, boolean> = {};
@@ -266,36 +266,52 @@ function FillBlankExercise({ exercise, onComplete }: FillBlankExerciseProps) {
 
       {/* Actions */}
       {!submitted ? (
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={handleSubmit}
-            disabled={!allFilled}
-            className="gap-2"
-          >
-            <CheckCircle2 size={16} />
-            Check Answers
-          </Button>
-          {exercise.hints.length > hintsRevealed && (
+        <>
+          <div className="flex items-center gap-3">
             <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setHintsRevealed((p) => p + 1)}
-              className="gap-1"
+              onClick={handleSubmit}
+              disabled={!allFilled || revealed}
+              className="gap-2"
             >
-              <Lightbulb size={14} /> Hint ({hintsRevealed}/
-              {exercise.hints.length})
+              <CheckCircle2 size={16} />
+              Check Answers
             </Button>
+            {exercise.hints.length > hintsRevealed && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setHintsRevealed((p) => p + 1)}
+                className="gap-1"
+              >
+                <Lightbulb size={14} /> Hint ({hintsRevealed}/
+                {exercise.hints.length})
+              </Button>
+            )}
+            {!revealed && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setShowAnswer(true); setRevealed(true); }}
+                className="gap-1"
+              >
+                <Eye size={14} />
+                Show Answer
+              </Button>
+            )}
+          </div>
+          {revealed && (
+            <div className="mt-4">
+              <Button
+                onClick={() => onComplete(false)}
+                variant="secondary"
+                size="lg"
+                className="w-full gap-2"
+              >
+                Next Exercise <ArrowRight size={18} />
+              </Button>
+            </div>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowAnswer(!showAnswer)}
-            className="gap-1"
-          >
-            {showAnswer ? <EyeOff size={14} /> : <Eye size={14} />}
-            {showAnswer ? "Hide" : "Show"} Answer
-          </Button>
-        </div>
+        </>
       ) : (
         <div className="space-y-4">
           <Card

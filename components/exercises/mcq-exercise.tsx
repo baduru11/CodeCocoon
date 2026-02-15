@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CodeBlock } from "@/components/ui/code-block";
-import { CheckCircle2, XCircle, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { CheckCircle2, XCircle, ArrowRight, Eye } from "lucide-react";
 import type { Exercise } from "@/types/exercise";
 
 interface MCQExerciseProps {
@@ -17,26 +17,39 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [revealed, setRevealed] = useState(false);
 
-  // Robust correctOptionIndex resolution: handle undefined, string, or number
+  // Robust correctOptionIndex resolution
+  // Priority: text match against options (most reliable) > correctOptionIndex > letter/number fallbacks
   const resolvedCorrectIndex = (() => {
-    if (exercise.correctOptionIndex !== undefined && exercise.correctOptionIndex !== null) {
-      return Number(exercise.correctOptionIndex);
-    }
-    // Fallback: try to match expectedAnswer against options
-    if (exercise.options && exercise.expectedAnswer) {
-      const idx = exercise.options.findIndex(
-        (opt) => opt.trim().toLowerCase() === exercise.expectedAnswer.trim().toLowerCase()
+    const options = exercise.options;
+    if (!options || options.length === 0) return undefined;
+
+    // 1. Try matching expectedAnswer text against option strings (most reliable)
+    if (exercise.expectedAnswer) {
+      const normalizedExpected = exercise.expectedAnswer.trim().toLowerCase();
+      const textMatch = options.findIndex(
+        (opt) => opt.trim().toLowerCase() === normalizedExpected
       );
-      if (idx !== -1) return idx;
-      // Try matching by index number in expectedAnswer (e.g. "1" or "B")
-      const numVal = parseInt(exercise.expectedAnswer);
-      if (!isNaN(numVal) && numVal >= 0 && numVal < exercise.options.length) return numVal;
-      // Try letter match (A=0, B=1, C=2, D=3)
+      if (textMatch !== -1) return textMatch;
+    }
+
+    // 2. Try correctOptionIndex (AI may provide 0-based or 1-based)
+    if (exercise.correctOptionIndex !== undefined && exercise.correctOptionIndex !== null) {
+      const idx = Number(exercise.correctOptionIndex);
+      if (!isNaN(idx) && idx >= 0 && idx < options.length) return idx;
+    }
+
+    // 3. Try matching expectedAnswer as letter (A=0, B=1, C=2, D=3) or number
+    if (exercise.expectedAnswer) {
       const letterMap: Record<string, number> = { A: 0, B: 1, C: 2, D: 3 };
       const letter = exercise.expectedAnswer.trim().toUpperCase();
-      if (letterMap[letter] !== undefined && letterMap[letter] < exercise.options.length) return letterMap[letter];
+      if (letterMap[letter] !== undefined && letterMap[letter] < options.length) return letterMap[letter];
+
+      const numVal = parseInt(exercise.expectedAnswer);
+      if (!isNaN(numVal) && numVal >= 0 && numVal < options.length) return numVal;
     }
+
     return undefined;
   })();
 
@@ -89,6 +102,7 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
 
             return (
               <button
+                type="button"
                 key={index}
                 onClick={() => {
                   if (!submitted) setSelectedIndex(index);
@@ -100,7 +114,7 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
                   "disabled:cursor-default",
                   state === "idle" && !submitted && "bg-surface hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none cursor-pointer",
                   state === "idle" && submitted && "bg-surface opacity-60",
-                  state === "selected" && "bg-primary/10 border-primary shadow-[3px_3px_0px_0px_#FF6B6B]",
+                  state === "selected" && "bg-secondary/10 border-secondary shadow-[3px_3px_0px_0px_#5294FF]",
                   state === "correct" && "bg-accent-green/15 border-accent-green shadow-[3px_3px_0px_0px_#05E17A]",
                   state === "wrong" && "bg-primary/15 border-primary shadow-[3px_3px_0px_0px_#FF6B6B]"
                 )}
@@ -110,7 +124,7 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
                     className={cn(
                       "flex-shrink-0 w-8 h-8 flex items-center justify-center border-2 border-foreground rounded-[4px] text-sm font-bold",
                       state === "idle" && "bg-surface",
-                      state === "selected" && "bg-primary text-white border-primary",
+                      state === "selected" && "bg-secondary text-white border-secondary",
                       state === "correct" && "bg-accent-green text-foreground border-accent-green",
                       state === "wrong" && "bg-primary text-white border-primary"
                     )}
@@ -168,26 +182,42 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
 
       {/* Submit / Explanation / Next */}
       {!submitted ? (
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={handleSubmit}
-            disabled={selectedIndex === null || !exercise.options?.length}
-            size="lg"
-            className="gap-2"
-          >
-            <CheckCircle2 size={18} />
-            Check Answer
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowAnswer(!showAnswer)}
-            className="gap-1"
-          >
-            {showAnswer ? <EyeOff size={14} /> : <Eye size={14} />}
-            {showAnswer ? "Hide" : "Show"} Answer
-          </Button>
-        </div>
+        <>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleSubmit}
+              disabled={selectedIndex === null || !exercise.options?.length || revealed}
+              size="lg"
+              className="gap-2"
+            >
+              <CheckCircle2 size={18} />
+              Check Answer
+            </Button>
+            {!revealed && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setShowAnswer(true); setRevealed(true); }}
+                className="gap-1"
+              >
+                <Eye size={14} />
+                Show Answer
+              </Button>
+            )}
+          </div>
+          {revealed && (
+            <div className="mt-4">
+              <Button
+                onClick={() => onComplete(false)}
+                variant="secondary"
+                size="lg"
+                className="w-full gap-2"
+              >
+                Next Exercise <ArrowRight size={18} />
+              </Button>
+            </div>
+          )}
+        </>
       ) : (
         <div className="space-y-4">
           {/* Explanation */}
@@ -207,25 +237,14 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
                   <p className="font-bold mb-1">
                     {isCorrect ? "Correct!" : "Not quite right"}
                   </p>
-                  {/* When wrong, explicitly show the correct answer */}
-                  {!isCorrect && exercise.options && resolvedCorrectIndex !== undefined && (
+                  {/* Show correct answer when wrong */}
+                  {!isCorrect && resolvedCorrectIndex !== undefined && exercise.options && (
                     <div className="mb-3 p-3 bg-accent-green/10 border-2 border-accent-green/30 rounded-[4px]">
                       <p className="text-sm font-bold text-accent-green mb-1">
                         Correct Answer: {optionLabels[resolvedCorrectIndex]}
                       </p>
                       <p className="text-sm font-medium">
                         {exercise.options[resolvedCorrectIndex]}
-                      </p>
-                    </div>
-                  )}
-                  {/* Fallback when correctOptionIndex could not be resolved */}
-                  {!isCorrect && exercise.options && resolvedCorrectIndex === undefined && exercise.expectedAnswer && (
-                    <div className="mb-3 p-3 bg-accent-green/10 border-2 border-accent-green/30 rounded-[4px]">
-                      <p className="text-sm font-bold text-accent-green mb-1">
-                        Correct Answer
-                      </p>
-                      <p className="text-sm font-medium">
-                        {exercise.expectedAnswer}
                       </p>
                     </div>
                   )}

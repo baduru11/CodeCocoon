@@ -18,7 +18,6 @@ import {
   Trophy,
   BarChart3,
   ArrowLeft,
-  Eye,
 } from "lucide-react";
 import { MCQExercise } from "@/components/exercises/mcq-exercise";
 import { TextExercise } from "@/components/exercises/text-exercise";
@@ -454,17 +453,20 @@ export function ExercisesTab({ session }: ExercisesTabProps) {
         </Button>
       </div>
 
-      {/* View Score — at the bottom */}
-      <div className="mt-6 pt-6 border-t-2 border-foreground/10 text-center">
-        <Button
-          onClick={() => setShowScore(true)}
-          variant="ghost"
-          className="gap-2"
-        >
-          <Eye size={16} />
-          View Score
-        </Button>
-      </div>
+      {/* View Score — only visible on last exercise */}
+      {currentEx >= filteredExercises.length - 1 && (
+        <div className="mt-6 pt-6 border-t-2 border-foreground/10">
+          <Button
+            onClick={() => setShowScore(true)}
+            variant="secondary"
+            size="lg"
+            className="w-full gap-2"
+          >
+            <Trophy size={18} />
+            View Score ({completed.size}/{filteredExercises.length} correct)
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

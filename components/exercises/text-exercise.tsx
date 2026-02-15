@@ -11,7 +11,6 @@ import {
   XCircle,
   Lightbulb,
   Eye,
-  EyeOff,
   Loader2,
   ArrowRight,
 } from "lucide-react";
@@ -30,6 +29,7 @@ function TextExercise({ exercise, onComplete }: TextExerciseProps) {
     feedback: string;
   } | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -106,7 +106,7 @@ function TextExercise({ exercise, onComplete }: TextExerciseProps) {
           <div className="flex items-center gap-3 mt-4">
             <Button
               onClick={handleSubmit}
-              disabled={!userAnswer.trim() || submitting}
+              disabled={!userAnswer.trim() || submitting || revealed}
               className="gap-2"
             >
               {submitting ? (
@@ -127,15 +127,17 @@ function TextExercise({ exercise, onComplete }: TextExerciseProps) {
                 {exercise.hints.length})
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAnswer(!showAnswer)}
-              className="gap-1"
-            >
-              {showAnswer ? <EyeOff size={14} /> : <Eye size={14} />}
-              {showAnswer ? "Hide" : "Show"} Answer
-            </Button>
+            {!revealed && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setShowAnswer(true); setRevealed(true); }}
+                className="gap-1"
+              >
+                <Eye size={14} />
+                Show Answer
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -195,11 +197,25 @@ function TextExercise({ exercise, onComplete }: TextExerciseProps) {
         </Card>
       )}
 
-      {/* Next */}
+      {/* Next — after submission */}
       {feedback && (
         <div className="text-center">
           <Button
             onClick={() => onComplete(feedback.isCorrect)}
+            variant="secondary"
+            size="lg"
+            className="gap-2"
+          >
+            Next Exercise <ArrowRight size={18} />
+          </Button>
+        </div>
+      )}
+
+      {/* Next — after reveal without submission */}
+      {revealed && !feedback && (
+        <div className="text-center">
+          <Button
+            onClick={() => onComplete(false)}
             variant="secondary"
             size="lg"
             className="gap-2"

@@ -14,7 +14,6 @@ import {
   X,
   Plus,
   Eye,
-  EyeOff,
 } from "lucide-react";
 import type { Exercise } from "@/types/exercise";
 
@@ -49,40 +48,8 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
   const [lineResults, setLineResults] = useState<boolean[]>([]);
   const [hintsRevealed, setHintsRevealed] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [revealed, setRevealed] = useState(false);
 
-  const pool = useMemo(() => {
-    const placedSet = new Map<string, number>();
-    for (const line of placed) {
-      placedSet.set(line, (placedSet.get(line) || 0) + 1);
-    }
-    const remaining: string[] = [];
-    const usedCounts = new Map<string, number>();
-    for (const line of shuffledLines) {
-      const usedSoFar = usedCounts.get(line) || 0;
-      const placedCount = placedSet.get(line) || 0;
-      if (usedSoFar < shuffledLines.filter((l) => l === line).length - placedCount) {
-        remaining.push(line);
-      }
-      usedCounts.set(line, usedSoFar + 1);
-    }
-    // Simpler: filter out placed lines tracking duplicates
-    return shuffledLines.filter((line) => {
-      const placedIdx = placed.indexOf(line);
-      if (placedIdx === -1) return true;
-      // Count occurrences in shuffled vs placed
-      const shuffledCount = shuffledLines.filter((l) => l === line).length;
-      const placedCountForLine = placed.filter((l) => l === line).length;
-      return placedCountForLine < shuffledCount
-        ? (() => {
-            // Only show if there are more in shuffled than placed
-            placed.filter((l) => l === line).length;
-            return false;
-          })()
-        : false;
-    });
-  }, [shuffledLines, placed]);
-
-  // Simpler pool computation
   const availablePool = useMemo(() => {
     const result: string[] = [...shuffledLines];
     for (const p of placed) {
@@ -92,7 +59,7 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
     return result;
   }, [shuffledLines, placed]);
 
-  const addToPlaced = (line: string, poolIndex: number) => {
+  const addToPlaced = (line: string) => {
     if (submitted) return;
     setPlaced((prev) => [...prev, line]);
   };
@@ -168,7 +135,7 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
               {availablePool.map((line, index) => (
                 <button
                   key={`pool-${index}`}
-                  onClick={() => addToPlaced(line, index)}
+                  onClick={() => addToPlaced(line)}
                   disabled={submitted}
                   className={cn(
                     "w-full text-left px-4 py-2.5 border-3 border-foreground rounded-[4px] font-mono text-sm",
@@ -349,36 +316,52 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
 
       {/* Actions */}
       {!submitted ? (
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={handleSubmit}
-            disabled={placed.length !== shuffledLines.length}
-            className="gap-2"
-          >
-            <CheckCircle2 size={16} />
-            Check Order
-          </Button>
-          {exercise.hints.length > hintsRevealed && (
+        <>
+          <div className="flex items-center gap-3">
             <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setHintsRevealed((p) => p + 1)}
-              className="gap-1"
+              onClick={handleSubmit}
+              disabled={placed.length !== shuffledLines.length || revealed}
+              className="gap-2"
             >
-              <Lightbulb size={14} /> Hint ({hintsRevealed}/
-              {exercise.hints.length})
+              <CheckCircle2 size={16} />
+              Check Order
             </Button>
+            {exercise.hints.length > hintsRevealed && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setHintsRevealed((p) => p + 1)}
+                className="gap-1"
+              >
+                <Lightbulb size={14} /> Hint ({hintsRevealed}/
+                {exercise.hints.length})
+              </Button>
+            )}
+            {!revealed && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setShowAnswer(true); setRevealed(true); }}
+                className="gap-1"
+              >
+                <Eye size={14} />
+                Show Answer
+              </Button>
+            )}
+          </div>
+          {revealed && (
+            <div className="mt-4">
+              <Button
+                onClick={() => onComplete(false)}
+                variant="secondary"
+                size="lg"
+                className="w-full gap-2"
+              >
+                Next Exercise <ArrowRight size={18} />
+              </Button>
+            </div>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowAnswer(!showAnswer)}
-            className="gap-1"
-          >
-            {showAnswer ? <EyeOff size={14} /> : <Eye size={14} />}
-            {showAnswer ? "Hide" : "Show"} Answer
-          </Button>
-        </div>
+        </>
       ) : (
         <div className="space-y-4">
           {/* Show correct order when wrong */}
