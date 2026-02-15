@@ -116,7 +116,7 @@ function TextExercise({ exercise, onComplete }: TextExerciseProps) {
               )}
               Submit Answer
             </Button>
-            {exercise.hints.length > hintsRevealed && (
+            {(exercise.hints ?? []).length > hintsRevealed && (
               <Button
                 variant="outline"
                 size="sm"
@@ -124,7 +124,7 @@ function TextExercise({ exercise, onComplete }: TextExerciseProps) {
                 className="gap-1"
               >
                 <Lightbulb size={14} /> Hint ({hintsRevealed}/
-                {exercise.hints.length})
+                {(exercise.hints ?? []).length})
               </Button>
             )}
             {!revealed && (
@@ -145,7 +145,7 @@ function TextExercise({ exercise, onComplete }: TextExerciseProps) {
       {/* Hints */}
       {hintsRevealed > 0 && (
         <div className="space-y-2">
-          {exercise.hints.slice(0, hintsRevealed).map((hint, i) => (
+          {(exercise.hints ?? []).slice(0, hintsRevealed).map((hint, i) => (
             <div
               key={i}
               className="flex items-start gap-2 p-3 bg-accent-yellow/10 border-2 border-accent-yellow/40 rounded-[4px]"

@@ -56,8 +56,8 @@ export function ExercisesTab({ session }: ExercisesTabProps) {
   const exercises = session.exercises ?? [];
 
   const [currentEx, setCurrentEx] = useState(0);
-  const [completed, setCompleted] = useState<Set<number>>(new Set());
-  const [attempted, setAttempted] = useState<Set<number>>(new Set());
+  const [completed, setCompleted] = useState<Set<string>>(new Set());
+  const [attempted, setAttempted] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<(typeof EXERCISE_TYPES)[number]>("all");
   const [difficulty, setDifficulty] = useState<"beginner" | "intermediate" | "advanced">(
     (session.skillLevel as "beginner" | "intermediate" | "advanced") || "beginner"
@@ -68,12 +68,12 @@ export function ExercisesTab({ session }: ExercisesTabProps) {
   const filteredExercises =
     activeFilter === "all" ? exercises : exercises.filter((e) => e.type === activeFilter);
 
-  // Auto-show score when all exercises attempted
+  // Auto-show score when all filtered exercises attempted (by ID)
   useEffect(() => {
-    if (filteredExercises.length > 0 && attempted.size >= filteredExercises.length) {
+    if (filteredExercises.length > 0 && filteredExercises.every((ex) => attempted.has(ex.id))) {
       setShowScore(true);
     }
-  }, [attempted.size, filteredExercises.length]);
+  }, [attempted, filteredExercises]);
 
   const advanceToNext = useCallback(() => {
     setCurrentEx((prev) => Math.min(prev + 1, filteredExercises.length - 1));
@@ -81,20 +81,23 @@ export function ExercisesTab({ session }: ExercisesTabProps) {
 
   const handleComplete = useCallback(
     (isCorrect: boolean) => {
+      const exerciseId = filteredExercises[currentEx]?.id;
+      if (!exerciseId) return;
       const newAttempted = new Set(attempted);
-      newAttempted.add(currentEx);
+      newAttempted.add(exerciseId);
       setAttempted(newAttempted);
       if (isCorrect) {
-        setCompleted((prev) => new Set(prev).add(currentEx));
+        setCompleted((prev) => new Set(prev).add(exerciseId));
       }
-      // Directly show score if all exercises have been attempted
-      if (newAttempted.size >= filteredExercises.length) {
+      // Check if all filtered exercises have been attempted (by ID)
+      const allAttempted = filteredExercises.every((ex) => newAttempted.has(ex.id));
+      if (allAttempted) {
         setShowScore(true);
       } else {
         advanceToNext();
       }
     },
-    [currentEx, advanceToNext, attempted, filteredExercises.length]
+    [currentEx, advanceToNext, attempted, filteredExercises]
   );
 
   const handleGenerateMore = async () => {
@@ -198,17 +201,15 @@ export function ExercisesTab({ session }: ExercisesTabProps) {
     const scorePercent =
       attempted.size > 0 ? Math.round((completed.size / attempted.size) * 100) : 0;
 
-    // Per-type breakdown
+    // Per-type breakdown (tracked by exercise ID)
     const typeBreakdown: { type: string; label: string; color: string; correct: number; total: number }[] = [];
     const typesSeen = new Set<string>();
-    filteredExercises.forEach((ex, i) => {
+    filteredExercises.forEach((ex) => {
       if (!typesSeen.has(ex.type)) {
         typesSeen.add(ex.type);
-        const ofType = filteredExercises
-          .map((e, idx) => ({ e, idx }))
-          .filter(({ e }) => e.type === ex.type);
-        const correctCount = ofType.filter(({ idx }) => completed.has(idx)).length;
-        const attemptedCount = ofType.filter(({ idx }) => attempted.has(idx)).length;
+        const ofType = filteredExercises.filter((e) => e.type === ex.type);
+        const correctCount = ofType.filter((e) => completed.has(e.id)).length;
+        const attemptedCount = ofType.filter((e) => attempted.has(e.id)).length;
         const config = typeConfig[ex.type];
         if (config) {
           typeBreakdown.push({

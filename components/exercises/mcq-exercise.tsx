@@ -91,7 +91,7 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
 
       {/* Options */}
       <div className="grid gap-3">
-        {(!exercise.options || exercise.options.length === 0) ? (
+        {(!exercise.options || !Array.isArray(exercise.options) || exercise.options.length === 0) ? (
           <div className="p-6 bg-accent-yellow/10 border-3 border-accent-yellow/40 rounded-[4px] text-center">
             <p className="font-bold text-sm mb-1">Options not available</p>
             <p className="text-xs text-muted">The AI did not generate options for this question. Try regenerating exercises.</p>
@@ -145,6 +145,14 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
         )}
       </div>
 
+      {/* Warning: no correct answer resolved */}
+      {exercise.options && exercise.options.length > 0 && resolvedCorrectIndex === undefined && !submitted && (
+        <div className="p-4 bg-accent-yellow/10 border-2 border-accent-yellow/40 rounded-[4px] text-sm">
+          <p className="font-bold text-accent-yellow">Unable to determine the correct answer for this question.</p>
+          <p className="text-xs text-muted mt-1">Try regenerating exercises or skip this one.</p>
+        </div>
+      )}
+
       {/* Show Answer (before submit) */}
       {showAnswer && !submitted && (
         <Card className="border-accent-purple">
@@ -186,7 +194,7 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
           <div className="flex items-center gap-3">
             <Button
               onClick={handleSubmit}
-              disabled={selectedIndex === null || !exercise.options?.length || revealed}
+              disabled={selectedIndex === null || !exercise.options?.length || revealed || resolvedCorrectIndex === undefined}
               size="lg"
               className="gap-2"
             >
