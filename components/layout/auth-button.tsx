@@ -31,7 +31,7 @@ export function AuthButton() {
       provider: "github",
       options: {
         redirectTo: `${window.location.origin}/auth/callback?next=/connect`,
-        scopes: "repo read:user",
+        scopes: "public_repo read:user",
       },
     });
   };

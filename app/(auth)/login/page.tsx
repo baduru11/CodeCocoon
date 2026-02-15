@@ -18,7 +18,7 @@ function LoginContent() {
       provider: "github",
       options: {
         redirectTo: `${window.location.origin}/auth/callback?next=${next}`,
-        scopes: "repo read:user",
+        scopes: "public_repo read:user",
       },
     });
   };
