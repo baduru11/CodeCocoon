@@ -204,7 +204,7 @@ export default function ProcessingPage() {
       )}
 
       {/* Complete State */}
-      {status === "complete" && (
+      {status === "complete" && steps.every((s) => s.done) && (
         <div className="flex justify-center">
           <Button
             size="lg"

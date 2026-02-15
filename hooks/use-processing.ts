@@ -85,6 +85,115 @@ export function useProcessing() {
       const decoder = new TextDecoder();
       let buffer = "";
 
+      const processLine = (line: string) => {
+        if (!line.startsWith("data: ")) return;
+
+        try {
+          const event = JSON.parse(line.slice(6));
+
+          switch (event.type) {
+            case "status":
+              setCurrentStep(event.data as string);
+              break;
+            case "step_start": {
+              const startKey = event.data as string;
+              markStepStarted(startKey);
+              break;
+            }
+            case "files_fetched":
+              markStepDone("files_fetched");
+              setResults((prev) => ({
+                ...prev,
+                projectData: event.data as FetchRepoResult,
+              }));
+              break;
+            case "tech_stack":
+              markStepDone("tech_stack");
+              setResults((prev) => ({
+                ...prev,
+                analysis: {
+                  ...prev.analysis,
+                  techStack: event.data as AnalysisResult["techStack"],
+                },
+              }));
+              break;
+            case "architecture":
+              markStepDone("architecture");
+              setResults((prev) => ({
+                ...prev,
+                analysis: {
+                  ...prev.analysis,
+                  architecture: event.data as AnalysisResult["architecture"],
+                },
+              }));
+              break;
+            case "key_files":
+              markStepDone("key_files");
+              setResults((prev) => ({
+                ...prev,
+                analysis: {
+                  ...prev.analysis,
+                  keyFiles: event.data as AnalysisResult["keyFiles"],
+                },
+              }));
+              break;
+            case "summary":
+              markStepDone("summary");
+              setResults((prev) => ({
+                ...prev,
+                analysis: {
+                  ...prev.analysis,
+                  summary: event.data as string,
+                },
+              }));
+              break;
+            case "learning_path":
+              markStepDone("learning_path");
+              setResults((prev) => ({
+                ...prev,
+                learningPath: event.data as LearningPath,
+              }));
+              break;
+            case "exercises":
+              markStepDone("exercises");
+              setResults((prev) => ({
+                ...prev,
+                exercises: event.data as Exercise[],
+              }));
+              break;
+            case "complete":
+              completedRef.current = true;
+              setStatus("complete");
+              setCurrentStep("Complete!");
+              // Merge complete event data with incrementally-built results
+              // to ensure no data is lost if the complete payload is partial
+              if (event.data) {
+                const completeData = event.data as ProcessingResults;
+                setResults((prev) => ({
+                  projectData: completeData.projectData ?? prev.projectData,
+                  analysis: completeData.analysis ?? prev.analysis,
+                  learningPath: completeData.learningPath ?? prev.learningPath,
+                  exercises: completeData.exercises ?? prev.exercises,
+                }));
+              }
+              break;
+            case "error":
+              throw new Error(
+                (event.data as { message: string }).message || "Processing failed"
+              );
+          }
+        } catch (parseError) {
+          if (
+            parseError instanceof Error &&
+            parseError.message !== "Processing failed"
+          ) {
+            console.warn("Failed to parse SSE event:", line);
+          } else {
+            throw parseError;
+          }
+        }
+      };
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -95,121 +204,20 @@ export function useProcessing() {
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-
-          try {
-            const event = JSON.parse(line.slice(6));
-
-            switch (event.type) {
-              case "status":
-                setCurrentStep(event.data as string);
-                break;
-              case "step_start": {
-                const startKey = event.data as string;
-                markStepStarted(startKey);
-                break;
-              }
-              case "files_fetched":
-                markStepDone("files_fetched");
-                setResults((prev) => ({
-                  ...prev,
-                  projectData: event.data as FetchRepoResult,
-                }));
-                break;
-              case "tech_stack":
-                markStepDone("tech_stack");
-                setResults((prev) => ({
-                  ...prev,
-                  analysis: {
-                    ...prev.analysis,
-                    techStack: event.data as AnalysisResult["techStack"],
-                  },
-                }));
-                break;
-              case "architecture":
-                markStepDone("architecture");
-                setResults((prev) => ({
-                  ...prev,
-                  analysis: {
-                    ...prev.analysis,
-                    architecture: event.data as AnalysisResult["architecture"],
-                  },
-                }));
-                break;
-              case "key_files":
-                markStepDone("key_files");
-                setResults((prev) => ({
-                  ...prev,
-                  analysis: {
-                    ...prev.analysis,
-                    keyFiles: event.data as AnalysisResult["keyFiles"],
-                  },
-                }));
-                break;
-              case "summary":
-                markStepDone("summary");
-                setResults((prev) => ({
-                  ...prev,
-                  analysis: {
-                    ...prev.analysis,
-                    summary: event.data as string,
-                  },
-                }));
-                break;
-              case "learning_path":
-                markStepDone("learning_path");
-                setResults((prev) => ({
-                  ...prev,
-                  learningPath: event.data as LearningPath,
-                }));
-                break;
-              case "exercises":
-                markStepDone("exercises");
-                setResults((prev) => ({
-                  ...prev,
-                  exercises: event.data as Exercise[],
-                }));
-                break;
-              case "complete":
-                completedRef.current = true;
-                setStatus("complete");
-                setCurrentStep("Complete!");
-                // Merge complete event data with incrementally-built results
-                // to ensure no data is lost if the complete payload is partial
-                if (event.data) {
-                  const completeData = event.data as ProcessingResults;
-                  setResults((prev) => ({
-                    projectData: completeData.projectData ?? prev.projectData,
-                    analysis: completeData.analysis ?? prev.analysis,
-                    learningPath: completeData.learningPath ?? prev.learningPath,
-                    exercises: completeData.exercises ?? prev.exercises,
-                  }));
-                }
-                break;
-              case "error":
-                throw new Error(
-                  (event.data as { message: string }).message || "Processing failed"
-                );
-            }
-          } catch (parseError) {
-            if (
-              parseError instanceof Error &&
-              parseError.message !== "Processing failed"
-            ) {
-              console.warn("Failed to parse SSE event:", line);
-            } else {
-              throw parseError;
-            }
-          }
+          processLine(line);
         }
       }
 
-      // If we finished reading without a complete event, mark as complete
-      // Uses ref to avoid stale closure issue with status state
+      // Flush any remaining data left in the buffer after stream ends
+      if (buffer.trim()) {
+        processLine(buffer.trim());
+      }
+
+      // If we finished reading without a complete event, treat as error
+      // since the stream ended before all steps were done
       if (!completedRef.current) {
-        completedRef.current = true;
-        setStatus("complete");
-        setCurrentStep("Complete!");
+        setStatus("error");
+        setError("Processing stream ended unexpectedly. Please try again.");
       }
     } catch (err) {
       setStatus("error");
