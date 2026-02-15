@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,16 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { Link2, GitBranch, Upload, ArrowRight, Loader2, FolderOpen, AlertCircle } from "lucide-react";
+import { Link2, GitBranch, Upload, ArrowRight, Loader2, FileCode, X, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import type { FetchRepoResult, GitHubRepo, FetchTreeResult } from "@/types/github";
-import type { AnalysisResult } from "@/types/analysis";
 
 export default function ConnectPage() {
   const router = useRouter();
-  const { isAuthenticated, providerToken } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { setValue: setTreeData } = useLocalStorage<FetchTreeResult | null>("treeData", null);
   const { value: treeData } = useLocalStorage<FetchTreeResult | null>("treeData", null);
+  const { setValue: setProjectData } = useLocalStorage<FetchRepoResult | null>("projectData", null);
 
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,6 +26,12 @@ export default function ConnectPage() {
   const [loadingRepos, setLoadingRepos] = useState(false);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [pendingUrl, setPendingUrl] = useState("");
+
+  // Upload state
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
 
   const parseRepoName = (urlOrOwnerRepo: string): string | null => {
     // Handle full URL
@@ -115,18 +121,50 @@ export default function ConnectPage() {
     }
   };
 
-  const loadRepos = async () => {
+  // Auto-load repos when authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
     setLoadingRepos(true);
+    fetch("/api/github/repos")
+      .then((res) => res.ok ? res.json() : Promise.reject())
+      .then((data) => setRepos(data.repos))
+      .catch(() => { /* Silently fail — repos are optional */ })
+      .finally(() => setLoadingRepos(false));
+  }, [isAuthenticated]);
+
+  // Upload handlers
+  const handleUploadFiles = useCallback((newFiles: FileList | null) => {
+    if (!newFiles) return;
+    setUploadFiles((prev) => [...prev, ...Array.from(newFiles)]);
+    setUploadError("");
+  }, []);
+
+  const removeUploadFile = (index: number) => {
+    setUploadFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUpload = async () => {
+    if (uploadFiles.length === 0) {
+      setUploadError("Please select some files");
+      return;
+    }
+    setUploading(true);
+    setUploadError("");
     try {
-      const res = await fetch("/api/github/repos");
-      if (res.ok) {
+      const formData = new FormData();
+      uploadFiles.forEach((file) => formData.append("files", file));
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) {
         const data = await res.json();
-        setRepos(data.repos);
+        throw new Error(data.error || "Upload failed");
       }
-    } catch {
-      // Silently fail — repos are optional
+      const data: FetchRepoResult = await res.json();
+      setProjectData(data);
+      router.push("/configure");
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
-      setLoadingRepos(false);
+      setUploading(false);
     }
   };
 
@@ -217,11 +255,15 @@ export default function ConnectPage() {
             <CardDescription>Select a repo from your GitHub account</CardDescription>
           </CardHeader>
           <CardContent>
-            {repos.length === 0 ? (
-              <Button onClick={loadRepos} disabled={loadingRepos} variant="outline" className="gap-2">
-                {loadingRepos ? <Loader2 size={16} className="animate-spin" /> : <FolderOpen size={16} />}
-                Load My Repos
-              </Button>
+            {loadingRepos ? (
+              <div className="flex items-center gap-2 text-sm text-muted font-medium py-4 justify-center">
+                <Loader2 size={16} className="animate-spin" />
+                Loading your repositories...
+              </div>
+            ) : repos.length === 0 ? (
+              <p className="text-sm text-muted font-medium text-center py-4">
+                No public repositories found.
+              </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto">
                 {repos.map((repo) => (
@@ -261,7 +303,7 @@ export default function ConnectPage() {
         </Card>
       )}
 
-      {/* Upload */}
+      {/* Upload Files — inline drop zone */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -271,12 +313,79 @@ export default function ConnectPage() {
           <CardDescription>Drag and drop your project files directly</CardDescription>
         </CardHeader>
         <CardContent>
-          <Link href="/upload">
-            <Button variant="outline" className="gap-2">
-              <Upload size={16} />
-              Go to File Upload
-            </Button>
-          </Link>
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              handleUploadFiles(e.dataTransfer.files);
+            }}
+            className={`relative p-8 text-center border-3 border-dashed rounded-[4px] transition-colors cursor-pointer ${
+              dragOver
+                ? "border-primary bg-primary/5"
+                : "border-foreground/30 hover:border-foreground/60"
+            }`}
+          >
+            <input
+              type="file"
+              multiple
+              onChange={(e) => handleUploadFiles(e.target.files)}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              accept=".ts,.tsx,.js,.jsx,.py,.rb,.go,.rs,.java,.html,.css,.json,.yaml,.yml,.md,.sql,.sh"
+            />
+            <Upload size={32} className="mx-auto mb-3 text-muted" />
+            <p className="font-bold mb-1">
+              Drop files here or click to browse
+            </p>
+            <p className="text-xs text-muted font-medium">
+              .ts, .tsx, .js, .py, .go, .java, .html, .css, .json, and more
+            </p>
+          </div>
+
+          {/* Selected files */}
+          {uploadFiles.length > 0 && (
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="flex items-center gap-2 text-sm font-bold">
+                  <FileCode size={14} />
+                  {uploadFiles.length} file{uploadFiles.length !== 1 ? "s" : ""} selected
+                </span>
+                <Button size="sm" variant="ghost" onClick={() => setUploadFiles([])} className="text-primary text-xs">
+                  Clear all
+                </Button>
+              </div>
+              <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                {uploadFiles.map((file, i) => (
+                  <div
+                    key={`${file.name}-${i}`}
+                    className="flex items-center justify-between p-2 bg-background rounded-[4px] border-2 border-foreground/20"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileCode size={12} className="shrink-0" />
+                      <span className="text-xs font-medium truncate">{file.name}</span>
+                      <Badge variant="default" className="text-[10px]">{(file.size / 1024).toFixed(1)} KB</Badge>
+                    </div>
+                    <button onClick={() => removeUploadFile(i)} className="p-1 hover:bg-primary/10 rounded-[4px]">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <Button
+                onClick={handleUpload}
+                disabled={uploading}
+                className="w-full mt-3 gap-2"
+              >
+                {uploading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                Analyze {uploadFiles.length} File{uploadFiles.length !== 1 ? "s" : ""}
+              </Button>
+            </div>
+          )}
+
+          {uploadError && (
+            <p className="mt-3 text-sm font-bold text-primary">{uploadError}</p>
+          )}
         </CardContent>
       </Card>
     </div>
