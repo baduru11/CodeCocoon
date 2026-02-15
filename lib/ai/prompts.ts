@@ -1,0 +1,369 @@
+import type { RepoFile } from "@/types/github";
+
+function formatFilesForPrompt(files: RepoFile[]): string {
+  return files
+    .map((f) => `--- FILE: ${f.path} (${f.language}) ---\n${f.content}`)
+    .join("\n\n");
+}
+
+export const PROMPTS = {
+  analyzeTechStack(files: RepoFile[]): string {
+    return `You are a senior software engineer analyzing a codebase. Identify ALL technologies used.
+
+CODEBASE:
+${formatFilesForPrompt(files)}
+
+Analyze every file carefully. For each category:
+- languages: Programming languages used (e.g., "TypeScript", "Python")
+- frameworks: Frameworks and libraries (e.g., "Next.js", "React", "Express")
+- databases: Any database or ORM (e.g., "PostgreSQL", "Prisma", "MongoDB")
+- tools: Build tools, testing, CI/CD (e.g., "Webpack", "Jest", "Docker")
+- styling: CSS frameworks/methods (e.g., "Tailwind CSS", "CSS Modules", "styled-components")
+
+Be specific. Don't guess — only include what's evident from the code.`;
+  },
+
+  analyzeArchitecture(files: RepoFile[]): string {
+    return `You are a senior software architect analyzing a codebase's architecture.
+
+CODEBASE:
+${formatFilesForPrompt(files)}
+
+Analyze:
+1. pattern: The overall architecture pattern (e.g., "MVC", "Component-based SPA", "Serverless", "Microservices", "Monolith")
+2. description: A clear 2-3 sentence description of how the codebase is organized
+3. layers: Break down the architecture into logical layers. For each layer:
+   - name: Layer name (e.g., "Presentation", "Business Logic", "Data Access")
+   - description: What this layer does
+   - files: Key file paths in this layer
+4. entryPoints: The main entry files (e.g., "app/page.tsx", "src/index.ts")
+
+Be precise and base everything on the actual file structure.`;
+  },
+
+  analyzeCodeQuality(files: RepoFile[]): string {
+    return `You are a senior code reviewer assessing code quality.
+
+CODEBASE:
+${formatFilesForPrompt(files)}
+
+Provide:
+1. score: A quality score from 0-100 based on:
+   - Code organization and structure (25 points)
+   - Naming conventions and readability (25 points)
+   - Error handling and edge cases (25 points)
+   - Best practices and patterns (25 points)
+2. issues: Specific problems found (max 8). Be constructive, not harsh. Reference specific files.
+3. strengths: Things done well (max 5). Acknowledge good practices.
+
+Be honest but encouraging — this is for someone learning to code.`;
+  },
+
+  identifyKeyFiles(files: RepoFile[]): string {
+    return `You are analyzing a codebase to identify the most important files for a developer to understand.
+
+CODEBASE FILES:
+${files.map((f) => `- ${f.path} (${f.language}, ${f.size} bytes)`).join("\n")}
+
+Identify the 8-12 most important files and for each provide:
+- path: The file path
+- role: Its role (e.g., "Entry point", "Route definitions", "Database schema", "Main component")
+- description: A brief explanation of what the file does and why it matters
+
+Focus on files that are critical for understanding how the app works.`;
+  },
+
+  generateSummary(files: RepoFile[]): string {
+    return `You are a senior technical writer creating documentation for a codebase. The reader used AI to generate this project and wants to understand how it works.
+
+CODEBASE:
+${formatFilesForPrompt(files)}
+
+Write an informative, objective summary (3-5 paragraphs) that explains:
+1. What this project does (its purpose and main functionality)
+2. How it's built (high-level architecture and design patterns)
+3. The main technologies used and their roles in the system
+4. How the components connect and data flows between them
+5. The recommended starting points for understanding the codebase
+
+Write in third person ("This project...", "The application..."). Be informative and objective.
+Focus on factual descriptions of architecture, data flow, and technology choices.
+Avoid subjective language, encouragement, or judgment. Do not address the reader directly.
+Explain technical terms when they first appear.`;
+  },
+
+  generateQuizQuestions(techStack: string[], skillLevel: string): string {
+    return `You are a coding instructor creating a skill assessment quiz.
+
+TECH STACK: ${techStack.join(", ")}
+TARGET LEVEL: Determine if the student is beginner, intermediate, or advanced
+
+Generate exactly 8 multiple-choice questions. Requirements:
+- 3 beginner questions (basic syntax, what things do)
+- 3 intermediate questions (how things work together, common patterns)
+- 2 advanced questions (edge cases, best practices, optimization)
+
+Each question must:
+- Have exactly 4 options (A, B, C, D)
+- Have one clear correct answer (0-3 index)
+- Include a brief explanation of why the answer is correct
+- Be specific to the tech stack above
+- Test understanding, NOT memorization
+
+Make questions practical — "What does this code do?" or "What's the best approach for X?"
+Don't make trick questions. The goal is assessment, not stumping people.`;
+  },
+
+  generateLearningPath(
+    techStack: string[],
+    skillLevel: string,
+    codeExamples: string
+  ): string {
+    return `You are an expert coding instructor creating a personalized learning path.
+
+STUDENT SKILL LEVEL: ${skillLevel}
+TECH STACK TO LEARN: ${techStack.join(", ")}
+CODE FROM THEIR PROJECT (for context):
+${codeExamples}
+
+Create a structured learning path with modules for each technology. Each module should have 3-5 lessons.
+
+For each lesson, provide:
+- A clear title and description
+- How this concept appears in THEIR code (keyConceptsFromCode) — reference specific patterns from the code above
+- 2-4 high-quality resources with REAL, WORKING URLs:
+  * Official documentation pages (e.g., https://react.dev/learn/...)
+  * MDN Web Docs for web fundamentals (e.g., https://developer.mozilla.org/...)
+  * freeCodeCamp articles/tutorials
+  * YouTube tutorials from reputable channels
+
+IMPORTANT:
+- Adapt complexity to their skill level
+- Start with fundamentals if beginner, skip basics if advanced
+- Always connect lessons back to their actual code
+- Resources must be REAL URLs that actually exist
+- Each module should build on the previous one`;
+  },
+
+  generateLearningPathWithContext(
+    techStack: string[],
+    skillLevel: string,
+    codeExamples: string,
+    analysisContext: string
+  ): string {
+    return `You are an expert coding instructor creating a personalized learning path.
+
+STUDENT SKILL LEVEL: ${skillLevel}
+TECH STACK TO LEARN: ${techStack.join(", ")}
+
+ANALYSIS CONTEXT (summary and architecture of their project):
+${analysisContext}
+
+CODE FROM THEIR PROJECT (for context):
+${codeExamples}
+
+Create a structured learning path with modules for each technology. Each module should have 3-5 lessons.
+
+For each lesson, provide:
+- A clear title and description
+- How this concept appears in THEIR code (keyConceptsFromCode) — reference specific patterns from the code and analysis above
+- 2-4 high-quality resources with REAL, WORKING URLs:
+  * Official documentation pages (e.g., https://react.dev/learn/...)
+  * MDN Web Docs for web fundamentals (e.g., https://developer.mozilla.org/...)
+  * freeCodeCamp articles/tutorials
+  * YouTube tutorials from reputable channels
+
+IMPORTANT:
+- Use the analysis context to personalize lessons — reference their architecture pattern, tech choices, and code quality insights
+- Adapt complexity to their skill level
+- Start with fundamentals if beginner, skip basics if advanced
+- Always connect lessons back to their actual code and project structure
+- Resources must be REAL URLs that actually exist
+- Each module should build on the previous one
+- Prioritize lessons that address code quality issues found in the analysis`;
+  },
+
+  generateExercises(
+    files: RepoFile[],
+    skillLevel: string,
+    exerciseTypes: string[]
+  ): string {
+    return `You are a coding instructor creating interactive exercises from a student's OWN codebase.
+
+SKILL LEVEL: ${skillLevel}
+CODEBASE:
+${formatFilesForPrompt(files.slice(0, 5))}
+
+Generate exactly 8 exercises with this distribution:
+- 1 error_injection
+- 1 code_recreation (fill-in-the-blank)
+- 1 code_explanation
+- 2 mcq
+- 1 output_prediction
+- 1 parsons
+- 1 error_message
+
+Types available: ${exerciseTypes.join(", ")}
+
+For "error_injection" exercises:
+- Take REAL code from their codebase and introduce 1-3 realistic bugs (off-by-one errors, missing null checks, wrong variable names, logic errors)
+- Set originalCode to an EMPTY STRING "" (do NOT include the correct version — the user must NOT see it)
+- Set modifiedCode to the buggy version (this is what the user will see and debug)
+- The expectedAnswer should describe the bugs and how to fix them in PLAIN TEXT (e.g., "Line 5 has an off-by-one error: the loop should use < instead of <=")
+- Do NOT put corrected code in expectedAnswer — describe the fixes verbally
+- Provide 2-3 progressive hints that guide toward finding bugs WITHOUT revealing the answers
+
+For "code_recreation" exercises (FILL-IN-THE-BLANK format):
+- Pick a meaningful code snippet (function, component, or logic block) from their codebase
+- Create a version with 3-6 key parts replaced by numbered blanks: ___BLANK_1___, ___BLANK_2___, etc.
+- Set modifiedCode to the code WITH blanks (this is what the user sees)
+- Set originalCode to an EMPTY STRING ""
+- Set expectedAnswer to a JSON object mapping blank numbers to their correct values, e.g.: {"1": "useState", "2": "count", "3": "setCount", "4": "0"}
+- Blanks should target important concepts: variable names, function calls, keywords, operators, values
+- Do NOT blank out trivial syntax like semicolons or brackets — focus on meaningful code elements
+- The prompt should say "Fill in the blanks to complete this code snippet"
+- Hints should give clues about what each blank should contain without revealing the answer
+- Example modifiedCode: "const [___BLANK_1___, ___BLANK_2___] = ___BLANK_3___(___BLANK_4___);"
+- Example expectedAnswer: {"1": "count", "2": "setCount", "3": "useState", "4": "0"}
+
+For "code_explanation" exercises:
+- Show a code snippet from their project
+- Ask them to explain what it does
+- Set originalCode to the snippet being explained
+- The expectedAnswer should be CONCISE (3-5 sentences max)
+- Explain at the student's skill level (${skillLevel})
+- Focus on WHAT the code does and WHY, not implementation minutiae
+- Use simple language, avoid jargon
+
+For "mcq" (multiple choice) exercises:
+- Create questions about concepts from their codebase
+- CRITICAL: You MUST set the "options" field to an array of EXACTLY 4 strings
+- CRITICAL: You MUST set "correctOptionIndex" to a number 0-3 (0-based index of the correct option)
+- Set "explanation" to explain why the correct answer is right and others are wrong
+- The prompt should be the question text
+- Set originalCode to the relevant code snippet if applicable (or empty string if not needed)
+- Example format:
+  "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
+  "correctOptionIndex": 1,
+  "explanation": "Option B is correct because..."
+
+For "parsons" exercises (Code Ordering):
+- Pick a meaningful code snippet (5-10 lines) from their codebase — a function body, a component return, or a logic block
+- Split the code into individual lines, each as a separate string
+- Set modifiedCode to a JSON array of the code lines SHUFFLED in random order, e.g.: ["  return result;", "function add(a, b) {", "  const result = a + b;", "}"]
+- Set expectedAnswer to a JSON array of the SAME lines in the CORRECT order, e.g.: ["function add(a, b) {", "  const result = a + b;", "  return result;", "}"]
+- CRITICAL: modifiedCode and expectedAnswer must contain the EXACT same lines, just in different order
+- CRITICAL: Each line must be a complete, meaningful line of code (not fragments)
+- Preserve indentation in the lines (e.g., "  const x = 1;" not "const x = 1;")
+- The prompt should say "Arrange the following lines of code in the correct order"
+- Set originalCode to an EMPTY STRING ""
+- Hints should describe what the code should do step-by-step without revealing the exact order
+
+For "error_message" exercises (Error Interpretation):
+- Take code from their codebase and create a scenario where it would produce a specific error
+- Set originalCode to the code snippet that causes the error
+- Set modifiedCode to the ERROR MESSAGE text (e.g., "TypeError: Cannot read properties of undefined (reading 'map')" or "ReferenceError: x is not defined")
+- Make the error messages realistic — use actual JavaScript/TypeScript error formats
+- The prompt should say "The following code produces the error shown below. Explain what causes this error and how to fix it."
+- The expectedAnswer should explain: (1) what the error means, (2) which line causes it, (3) why it happens, (4) how to fix it
+- Focus on common errors: TypeError, ReferenceError, SyntaxError, undefined access, null checks, async/await issues
+- Hints should guide toward understanding the error type without revealing the exact cause
+
+For "output_prediction" exercises:
+- Show a code snippet and ask "What will this code output?" or "What is the value of X after this code runs?"
+- Set originalCode to the code snippet being analyzed
+- CRITICAL: You MUST set the "options" field to an array of EXACTLY 4 strings representing possible outputs
+- CRITICAL: You MUST set "correctOptionIndex" to a number 0-3 (0-based index of the correct output)
+- Set "explanation" to explain the execution flow step-by-step showing why the correct output is produced
+- Make the wrong options realistic — common mistakes like off-by-one errors, wrong operator precedence, etc.
+- The prompt should be something like "What will the following code output?" or "What is the final value of 'result'?"
+- Focus on concepts like: loop behavior, conditional logic, array operations, string manipulation, scope/closure
+- Example: code with a loop → options: ["0 1 2 3", "1 2 3 4", "0 1 2 3 4", "1 2 3"] where one is correct
+
+Make ALL exercises relevant to their actual code. Reference specific files via relatedFile.
+Difficulty should match their skill level.
+Every exercise MUST have: id (unique string), type, difficulty, title, prompt, originalCode (can be empty ""), expectedAnswer, hints (array of strings), relatedFile.`;
+  },
+
+  evaluateExerciseAnswer(
+    exerciseType: string,
+    prompt: string,
+    expectedAnswer: string,
+    userAnswer: string
+  ): string {
+    const typeSpecificRules: Record<string, string> = {
+      error_injection: `TYPE-SPECIFIC RULES (Bug Hunt):
+- The student MUST describe the bug(s) in their OWN WORDS using natural language
+- They should explain WHAT is wrong and HOW to fix it
+- REJECT as INCORRECT if the student:
+  * Simply copy-pasted code (even if it's the correct/fixed code)
+  * Pasted the code snippet shown in the exercise without any explanation
+  * Wrote only code without describing the bugs in words
+- A correct answer looks like: "The loop condition uses <= instead of <, causing an off-by-one error. Fix by changing line 5 to use < operator."
+- An INCORRECT answer looks like: just pasting code, or writing "this is the bug" without specifics`,
+
+      code_explanation: `TYPE-SPECIFIC RULES (Code Explanation):
+- The student MUST explain what the code does in NATURAL LANGUAGE (plain English sentences)
+- They should describe the code's purpose, logic flow, and behavior
+- REJECT as INCORRECT if the student:
+  * Simply copy-pasted the code snippet back as their answer
+  * Wrote only code without any natural language explanation
+  * Gave a one-word or trivially short answer (e.g., "it works", "function")
+- A correct answer demonstrates UNDERSTANDING of what the code does and why
+- The explanation should cover the key behavior, not just restate the code in words`,
+
+      code_recreation: `TYPE-SPECIFIC RULES (Fill in the Blank):
+- The student is filling in blanks in a code snippet
+- Compare their answers to the expected blank values
+- Be flexible with minor differences (e.g., single vs double quotes, trailing semicolons)
+- But the core logic/keywords must match`,
+
+      error_message: `TYPE-SPECIFIC RULES (Error Interpretation):
+- The student MUST explain what causes the error in NATURAL LANGUAGE
+- They should identify: the error type, which part of the code causes it, why it happens, and how to fix it
+- REJECT as INCORRECT if the student:
+  * Simply pasted the error message back
+  * Gave a vague answer like "there's an error" without specifics
+  * Only provided fixed code without explaining the cause
+- A correct answer demonstrates understanding of WHY the error occurs`,
+
+      parsons: `TYPE-SPECIFIC RULES (Code Ordering / Parsons):
+- The student arranged code lines in a specific order
+- Compare their ordering to the expected correct order
+- The order must match exactly — each line in the correct position
+- This should be a straightforward sequence comparison`,
+
+      mcq: `TYPE-SPECIFIC RULES (Multiple Choice):
+- Compare the student's selected answer to the expected correct answer
+- This should be a straightforward match`,
+    };
+
+    const rules = typeSpecificRules[exerciseType] || "";
+
+    return `You are a strict but helpful coding tutor evaluating a student's answer.
+
+EXERCISE TYPE: ${exerciseType}
+EXERCISE PROMPT: ${prompt}
+EXPECTED ANSWER: ${expectedAnswer}
+STUDENT'S ANSWER: ${userAnswer}
+
+${rules}
+
+ANTI-CHEAT CHECK (MANDATORY — do this FIRST):
+1. Does the student's answer look like they just copy-pasted code from the exercise prompt?
+2. Is the answer suspiciously similar to a code snippet rather than a thoughtful response?
+3. For text-based exercises (error_injection, code_explanation): the answer MUST be in natural language. Code-only answers = INCORRECT.
+
+If the anti-cheat check fails, mark as INCORRECT and provide feedback like: "It looks like you pasted the code snippet. Please describe [the bugs / what the code does] in your own words."
+
+OTHERWISE, evaluate normally:
+1. Is it correct? (boolean)
+2. Constructive feedback (2-3 sentences):
+   - If correct: praise what they got right, mention any alternative approaches
+   - If incorrect: explain what's wrong WITHOUT giving the answer, guide them toward understanding
+
+Be encouraging and educational. Remember, they're learning.
+
+Respond in JSON format: { "isCorrect": boolean, "feedback": "string" }`;
+  },
+};
