@@ -117,7 +117,7 @@ export default function AssessPage() {
       <div className="max-w-2xl mx-auto px-4 py-12">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-4">Assessment Complete!</h1>
-          <div className="inline-flex items-center gap-2 px-6 py-3 bg-surface border-3 border-foreground rounded-[4px] shadow-[5px_5px_0px_0px_#1A1A1A]">
+          <div className="inline-flex items-center gap-2 px-6 py-3 bg-surface border-2 border-foreground/15 rounded-xl shadow-sm">
             <span className="text-2xl">{level.emoji}</span>
             <span className="text-2xl font-bold">{level.label}</span>
           </div>
@@ -169,7 +169,7 @@ export default function AssessPage() {
               {result.questions.map((q, i) => {
                 const answer = result.answers[i];
                 return (
-                  <div key={q.id} className={`p-3 rounded-[4px] border-2 ${answer?.isCorrect ? "border-accent-green/50 bg-accent-green/5" : "border-primary/50 bg-primary/5"}`}>
+                  <div key={q.id} className={`p-3 rounded-xl border ${answer?.isCorrect ? "border-accent-green/30 bg-accent-green/5" : "border-primary/30 bg-primary/5"}`}>
                     <p className="font-bold text-sm mb-1">{i + 1}. {q.question}</p>
                     <p className="text-xs text-muted mb-1">
                       Your answer: <span className="font-bold">{q.options[answer?.selectedAnswer]}</span>
@@ -234,10 +234,10 @@ export default function AssessPage() {
               <button
                 key={i}
                 onClick={() => setSelectedAnswer(i)}
-                className={`w-full text-left p-4 border-3 rounded-[4px] font-medium transition-all ${
+                className={`w-full text-left p-4 border-2 rounded-xl font-medium transition-all cursor-pointer ${
                   selectedAnswer === i
-                    ? "border-primary bg-primary/10 shadow-[3px_3px_0px_0px_#FF6B6B]"
-                    : "border-foreground/30 hover:border-foreground hover:shadow-[3px_3px_0px_0px_#1A1A1A]"
+                    ? "border-primary bg-primary/10 ring-2 ring-primary/20"
+                    : "border-foreground/20 hover:border-foreground/40 hover:bg-foreground/[0.02]"
                 }`}
               >
                 <span className="font-bold mr-2">{String.fromCharCode(65 + i)}.</span>

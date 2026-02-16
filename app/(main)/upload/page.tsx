@@ -81,10 +81,10 @@ export default function UploadPage() {
               setDragOver(false);
               handleFiles(e.dataTransfer.files);
             }}
-            className={`relative p-12 text-center border-3 border-dashed rounded-[4px] m-1 transition-colors cursor-pointer ${
+            className={`relative p-12 text-center border-2 border-dashed rounded-xl m-1 transition-colors cursor-pointer ${
               dragOver
                 ? "border-primary bg-primary/5"
-                : "border-foreground/30 hover:border-foreground/60"
+                : "border-foreground/20 hover:border-foreground/40"
             }`}
           >
             <input
@@ -129,7 +129,7 @@ export default function UploadPage() {
               {files.map((file, i) => (
                 <div
                   key={`${file.name}-${i}`}
-                  className="flex items-center justify-between p-2 bg-background rounded-[4px] border-2 border-foreground/20"
+                  className="flex items-center justify-between p-2 bg-background rounded-xl border border-foreground/15"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <FileCode size={14} className="shrink-0" />
@@ -138,7 +138,7 @@ export default function UploadPage() {
                   </div>
                   <button
                     onClick={() => removeFile(i)}
-                    className="p-1 hover:bg-red-100 rounded-[4px] transition-colors"
+                    className="p-1 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
                   >
                     <X size={14} />
                   </button>

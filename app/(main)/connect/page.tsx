@@ -182,6 +182,10 @@ export default function ConnectPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">
       <div className="text-center mb-12">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-secondary/10 border border-secondary/30 rounded-full text-xs font-bold text-secondary mb-4">
+          <Link2 size={14} />
+          Get Started
+        </div>
         <h1 className="text-4xl font-bold mb-3">Connect Your Project</h1>
         <p className="text-muted font-medium text-lg">
           Paste a GitHub repo URL or browse your repositories
@@ -195,16 +199,17 @@ export default function ConnectPage() {
             <div className="flex items-start gap-3">
               <AlertCircle size={20} className="text-accent-yellow shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="font-bold mb-3">You've already analyzed this repo.</p>
+                <p className="font-bold mb-3">You&apos;ve already analyzed this repo.</p>
                 <div className="flex gap-2">
                   <Link href="/results">
-                    <Button variant="secondary" size="sm">
+                    <Button variant="secondary" size="sm" className="cursor-pointer">
                       View Previous Results
                     </Button>
                   </Link>
                   <Button
                     variant="outline"
                     size="sm"
+                    className="cursor-pointer"
                     onClick={() => {
                       setShowDuplicateWarning(false);
                       // pendingUrl is either a full URL or "owner/repo" from repo list
@@ -227,13 +232,13 @@ export default function ConnectPage() {
       )}
 
       {/* URL Input */}
-      <Card className="mb-8">
+      <Card className="mb-8 rounded-xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Link2 size={20} />
             Paste Repository URL
           </CardTitle>
-          <CardDescription>Works with any public GitHub repository — no login required</CardDescription>
+          <CardDescription>Works with any public GitHub repository -- no login required</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-3">
@@ -245,7 +250,7 @@ export default function ConnectPage() {
                 onKeyDown={(e) => e.key === "Enter" && handleFetchUrl()}
               />
             </div>
-            <Button onClick={() => handleFetchUrl()} disabled={loading} className="gap-2">
+            <Button onClick={() => handleFetchUrl()} disabled={loading} className="gap-2 cursor-pointer">
               {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
               Analyze
             </Button>
@@ -257,14 +262,14 @@ export default function ConnectPage() {
       </Card>
 
       <div className="flex items-center gap-4 mb-8">
-        <div className="flex-1 h-[3px] bg-foreground/20" />
-        <span className="font-bold text-muted text-sm">OR</span>
-        <div className="flex-1 h-[3px] bg-foreground/20" />
+        <div className="flex-1 h-px bg-foreground/10" />
+        <span className="font-bold text-muted/60 text-xs uppercase tracking-widest px-3">or</span>
+        <div className="flex-1 h-px bg-foreground/10" />
       </div>
 
       {/* GitHub Repos */}
       {isAuthenticated ? (
-        <Card className="mb-8">
+        <Card className="mb-8 border-foreground/15 rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <GitBranch size={20} />
@@ -310,7 +315,7 @@ export default function ConnectPage() {
                     key={repo.id}
                     onClick={() => handleFetchRepo(repo.owner.login, repo.name, false)}
                     disabled={loading}
-                    className="text-left p-4 bg-surface border-3 border-foreground rounded-[4px] shadow-[3px_3px_0px_0px_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all disabled:opacity-50"
+                    className="cursor-pointer text-left p-4 bg-surface border-2 border-foreground/15 rounded-xl shadow-[3px_3px_0px_0px_rgba(30,41,59,0.15)] hover:border-foreground/30 hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all disabled:opacity-50"
                   >
                     <div className="font-bold text-sm truncate">{repo.full_name}</div>
                     {repo.description && (
@@ -327,13 +332,15 @@ export default function ConnectPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="mb-8">
-          <CardContent className="text-center py-8">
-            <GitBranch size={32} className="mx-auto mb-3 text-muted" />
+        <Card className="mb-8 border-foreground/15 rounded-xl">
+          <CardContent className="text-center py-10">
+            <div className="inline-flex items-center justify-center w-14 h-14 bg-secondary/10 rounded-2xl mb-4">
+              <GitBranch size={28} className="text-secondary" />
+            </div>
             <p className="font-bold mb-2">Want to browse your repos?</p>
-            <p className="text-sm text-muted mb-4">Login with GitHub to access your repositories</p>
+            <p className="text-sm text-muted mb-5">Login with GitHub to access your repositories</p>
             <Link href="/login?next=/connect">
-              <Button variant="secondary" className="gap-2">
+              <Button variant="secondary" className="gap-2 cursor-pointer">
                 <GitBranch size={16} />
                 Login with GitHub
               </Button>
@@ -343,7 +350,7 @@ export default function ConnectPage() {
       )}
 
       {/* Upload Files — inline drop zone */}
-      <Card>
+      <Card className="border-foreground/15 rounded-xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Upload size={20} />
@@ -360,10 +367,10 @@ export default function ConnectPage() {
               setDragOver(false);
               handleUploadFiles(e.dataTransfer.files);
             }}
-            className={`relative p-8 text-center border-3 border-dashed rounded-[4px] transition-colors cursor-pointer ${
+            className={`relative p-10 text-center border-2 border-dashed rounded-xl transition-all cursor-pointer ${
               dragOver
                 ? "border-primary bg-primary/5"
-                : "border-foreground/30 hover:border-foreground/60"
+                : "border-foreground/20 hover:border-foreground/40 hover:bg-surface/50"
             }`}
           >
             <input
@@ -373,7 +380,9 @@ export default function ConnectPage() {
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               accept=".ts,.tsx,.js,.jsx,.py,.rb,.go,.rs,.java,.html,.css,.json,.yaml,.yml,.md,.sql,.sh"
             />
-            <Upload size={32} className="mx-auto mb-3 text-muted" />
+            <div className="inline-flex items-center justify-center w-14 h-14 bg-foreground/5 rounded-2xl mb-4">
+              <Upload size={28} className="text-muted" />
+            </div>
             <p className="font-bold mb-1">
               Drop files here or click to browse
             </p>
@@ -384,13 +393,13 @@ export default function ConnectPage() {
 
           {/* Selected files */}
           {uploadFiles.length > 0 && (
-            <div className="mt-4">
+            <div className="mt-5">
               <div className="flex items-center justify-between mb-2">
                 <span className="flex items-center gap-2 text-sm font-bold">
                   <FileCode size={14} />
                   {uploadFiles.length} file{uploadFiles.length !== 1 ? "s" : ""} selected
                 </span>
-                <Button size="sm" variant="ghost" onClick={() => setUploadFiles([])} className="text-primary text-xs">
+                <Button size="sm" variant="ghost" onClick={() => setUploadFiles([])} className="text-primary text-xs cursor-pointer">
                   Clear all
                 </Button>
               </div>
@@ -398,14 +407,14 @@ export default function ConnectPage() {
                 {uploadFiles.map((file, i) => (
                   <div
                     key={`${file.name}-${i}`}
-                    className="flex items-center justify-between p-2 bg-background rounded-[4px] border-2 border-foreground/20"
+                    className="flex items-center justify-between p-2.5 bg-background rounded-xl border border-foreground/10"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <FileCode size={12} className="shrink-0" />
+                      <FileCode size={12} className="shrink-0 text-muted" />
                       <span className="text-xs font-medium truncate">{file.name}</span>
                       <Badge variant="default" className="text-[10px]">{(file.size / 1024).toFixed(1)} KB</Badge>
                     </div>
-                    <button onClick={() => removeUploadFile(i)} className="p-1 hover:bg-primary/10 rounded-[4px]">
+                    <button onClick={() => removeUploadFile(i)} className="cursor-pointer p-1.5 hover:bg-primary/10 rounded-lg transition-colors">
                       <X size={12} />
                     </button>
                   </div>
@@ -414,7 +423,7 @@ export default function ConnectPage() {
               <Button
                 onClick={handleUpload}
                 disabled={uploading}
-                className="w-full mt-3 gap-2"
+                className="w-full mt-4 gap-2 cursor-pointer"
               >
                 {uploading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
                 Analyze {uploadFiles.length} File{uploadFiles.length !== 1 ? "s" : ""}

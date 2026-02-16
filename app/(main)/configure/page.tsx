@@ -193,7 +193,7 @@ export default function ConfigurePage() {
       </div>
 
       {/* Skill Level Selection */}
-      <Card className="mb-8">
+      <Card className="mb-8 rounded-xl">
         <CardHeader>
           <CardTitle>Your Skill Level</CardTitle>
           <CardDescription>This personalizes the learning content to your experience</CardDescription>
@@ -207,10 +207,10 @@ export default function ConfigurePage() {
                   key={option.value}
                   onClick={() => setSkillLevel(option.value)}
                   className={cn(
-                    "text-left p-5 rounded-[4px] transition-all",
+                    "cursor-pointer text-left p-5 rounded-xl transition-all",
                     isSelected
-                      ? "bg-surface border-3 border-foreground shadow-[5px_5px_0px_0px_#1A1A1A]"
-                      : "bg-surface border-2 border-foreground/20 hover:border-foreground/50"
+                      ? "bg-surface border-2 border-foreground shadow-[4px_4px_0px_0px_#1E293B]"
+                      : "bg-surface border-2 border-foreground/15 hover:border-foreground/40 hover:bg-surface/80"
                   )}
                 >
                   <div className="text-3xl mb-2">{option.emoji}</div>
@@ -226,7 +226,7 @@ export default function ConfigurePage() {
       </Card>
 
       {/* File Selection */}
-      <Card className="mb-8">
+      <Card className="mb-8 rounded-xl">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -240,7 +240,7 @@ export default function ConfigurePage() {
             </div>
             <button
               onClick={toggleAll}
-              className="flex items-center gap-2 text-sm font-bold text-foreground hover:text-primary transition-colors"
+              className="cursor-pointer flex items-center gap-2 text-sm font-bold text-foreground hover:text-primary transition-colors"
             >
               {allSelected ? (
                 <MinusSquare size={18} />
@@ -253,7 +253,7 @@ export default function ConfigurePage() {
         </CardHeader>
         <CardContent>
           {/* Summary bar */}
-          <div className="flex items-center justify-between mb-4 p-3 bg-background border-2 border-foreground/20 rounded-[4px]">
+          <div className="flex items-center justify-between mb-4 p-3 bg-background border border-foreground/10 rounded-xl">
             <span className="font-bold text-sm">
               {selectedFiles.length} file{selectedFiles.length !== 1 ? "s" : ""} selected
             </span>
@@ -275,11 +275,11 @@ export default function ConfigurePage() {
                   key={file.path}
                   onClick={() => toggleFile(file.path)}
                   className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-[4px] transition-all",
+                    "cursor-pointer w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-xl transition-all",
                     isSelected
-                      ? "bg-accent-green/10 border-2 border-accent-green/40"
-                      : "bg-surface border-2 border-transparent hover:border-foreground/20",
-                    isLarge && !isSelected && "bg-accent-yellow/10 border-accent-yellow/40"
+                      ? "bg-accent-green/8 border border-accent-green/30"
+                      : "bg-surface border border-transparent hover:border-foreground/15 hover:bg-surface/80",
+                    isLarge && !isSelected && "bg-accent-yellow/8 border-accent-yellow/30"
                   )}
                 >
                   {isSelected ? (
@@ -294,14 +294,14 @@ export default function ConfigurePage() {
                     {isLarge && (
                       <AlertTriangle size={14} className="text-accent-yellow" />
                     )}
-                    <span className="text-[10px] font-bold text-muted bg-background px-1.5 py-0.5 border border-foreground/15 rounded-[2px]">
+                    <span className="text-[10px] font-bold text-muted bg-background px-1.5 py-0.5 border border-foreground/10 rounded-md">
                       {lang}
                     </span>
                     <span className={cn(
-                      "text-[10px] font-bold px-1.5 py-0.5 border rounded-[2px]",
+                      "text-[10px] font-bold px-1.5 py-0.5 border rounded-md",
                       isLarge
                         ? "text-accent-yellow border-accent-yellow/40 bg-accent-yellow/10"
-                        : "text-muted border-foreground/15 bg-background"
+                        : "text-muted border-foreground/10 bg-background"
                     )}>
                       {bytesToSize(file.size)}
                     </span>
@@ -313,7 +313,7 @@ export default function ConfigurePage() {
 
           {/* Large file warning */}
           {sortedFiles.some(isLargeFile) && (
-            <div className="mt-4 flex items-start gap-2 p-3 bg-accent-yellow/10 border-2 border-accent-yellow/30 rounded-[4px]">
+            <div className="mt-4 flex items-start gap-2 p-3 bg-accent-yellow/8 border border-accent-yellow/25 rounded-xl">
               <AlertTriangle size={16} className="text-accent-yellow shrink-0 mt-0.5" />
               <p className="text-xs font-medium text-foreground">
                 Files over {bytesToSize(FILE_SIZE_WARNING_BYTES)} are highlighted and pre-excluded.
@@ -326,11 +326,11 @@ export default function ConfigurePage() {
 
       {/* Filtered Files Section */}
       {treeData.excludedFiles && treeData.excludedFiles.length > 0 && (
-        <Card className="mb-8">
+        <Card className="mb-8 border-foreground/15 rounded-xl">
           <CardHeader>
             <button
               onClick={() => setShowFiltered(!showFiltered)}
-              className="flex items-center justify-between w-full text-left hover:opacity-70 transition-opacity"
+              className="cursor-pointer flex items-center justify-between w-full text-left hover:opacity-70 transition-opacity"
             >
               <div className="flex items-center gap-2">
                 <Filter size={20} />
@@ -348,7 +348,7 @@ export default function ConfigurePage() {
           {showFiltered && (
             <CardContent>
               {/* Info Banner */}
-              <div className="mb-4 flex items-start gap-2 p-3 bg-accent-green/10 border-2 border-accent-green/30 rounded-[4px]">
+              <div className="mb-4 flex items-start gap-2 p-3 bg-accent-green/8 border border-accent-green/25 rounded-xl">
                 <Info size={16} className="text-accent-green shrink-0 mt-0.5" />
                 <div className="text-xs font-medium text-foreground">
                   <p className="mb-1">
@@ -365,10 +365,10 @@ export default function ConfigurePage() {
                 <button
                   onClick={() => setFilterReasonFilter("all")}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-bold border-2 rounded-[4px] transition-all",
+                    "cursor-pointer px-3 py-1.5 text-xs font-bold border-2 rounded-xl transition-all",
                     filterReasonFilter === "all"
                       ? "bg-foreground text-background border-foreground"
-                      : "bg-surface text-foreground border-foreground/20 hover:border-foreground/50"
+                      : "bg-surface text-foreground border-foreground/15 hover:border-foreground/40"
                   )}
                 >
                   All ({treeData.totalExcludedFiles.toLocaleString()})
@@ -381,10 +381,10 @@ export default function ConfigurePage() {
                       key={reason}
                       onClick={() => setFilterReasonFilter(reason)}
                       className={cn(
-                        "px-3 py-1.5 text-xs font-bold border-2 rounded-[4px] transition-all",
+                        "cursor-pointer px-3 py-1.5 text-xs font-bold border-2 rounded-xl transition-all",
                         filterReasonFilter === reason
                           ? getFilterReasonColor(reason)
-                          : "bg-surface text-foreground border-foreground/20 hover:border-foreground/50"
+                          : "bg-surface text-foreground border-foreground/15 hover:border-foreground/40"
                       )}
                     >
                       {getFilterReasonLabel(reason)} ({count.toLocaleString()})
@@ -400,7 +400,7 @@ export default function ConfigurePage() {
                     variant="outline"
                     size="sm"
                     onClick={includeAllFiltered}
-                    className="gap-2"
+                    className="gap-2 cursor-pointer"
                   >
                     <CheckSquare size={14} />
                     Include All {filterReasonFilter !== "all" ? getFilterReasonLabel(filterReasonFilter) : ""} Files
@@ -410,7 +410,7 @@ export default function ConfigurePage() {
 
               {/* Performance Warning */}
               {treeData.totalExcludedFiles > 10000 && (
-                <div className="mb-4 flex items-start gap-2 p-3 bg-accent-yellow/10 border-2 border-accent-yellow/30 rounded-[4px]">
+                <div className="mb-4 flex items-start gap-2 p-3 bg-accent-yellow/8 border border-accent-yellow/25 rounded-xl">
                   <AlertTriangle size={16} className="text-accent-yellow shrink-0 mt-0.5" />
                   <p className="text-xs font-medium text-foreground">
                     This repository has {treeData.totalExcludedFiles.toLocaleString()} filtered files. Only the first 1,000 are shown below for performance.
@@ -429,10 +429,10 @@ export default function ConfigurePage() {
                     <div
                       key={file.path}
                       className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-[4px] border-2",
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border",
                         isSelected
-                          ? "bg-accent-green/10 border-accent-green/40"
-                          : "bg-surface border-foreground/10"
+                          ? "bg-accent-green/8 border-accent-green/30"
+                          : "bg-surface border-foreground/8 hover:border-foreground/15"
                       )}
                     >
                       <span className="font-mono text-xs truncate flex-1" title={file.path}>
@@ -443,7 +443,7 @@ export default function ConfigurePage() {
                         {file.filterReason && (
                           <span
                             className={cn(
-                              "text-[10px] font-bold px-1.5 py-0.5 border-2 rounded-[2px]",
+                              "text-[10px] font-bold px-1.5 py-0.5 border-2 rounded-md",
                               getFilterReasonColor(file.filterReason)
                             )}
                             title={file.filterDetails}
@@ -451,23 +451,23 @@ export default function ConfigurePage() {
                             {getFilterReasonLabel(file.filterReason)}
                           </span>
                         )}
-                        <span className="text-[10px] font-bold text-muted bg-background px-1.5 py-0.5 border border-foreground/15 rounded-[2px]">
+                        <span className="text-[10px] font-bold text-muted bg-background px-1.5 py-0.5 border border-foreground/10 rounded-md">
                           {lang}
                         </span>
-                        <span className="text-[10px] font-bold text-muted bg-background px-1.5 py-0.5 border border-foreground/15 rounded-[2px]">
+                        <span className="text-[10px] font-bold text-muted bg-background px-1.5 py-0.5 border border-foreground/10 rounded-md">
                           {bytesToSize(file.size)}
                         </span>
                         {isSelected ? (
                           <button
                             onClick={() => toggleFile(file.path)}
-                            className="text-xs font-bold text-accent-green hover:text-accent-green/70 transition-colors px-2 py-1"
+                            className="cursor-pointer text-xs font-bold text-accent-green hover:text-accent-green/70 transition-colors px-2 py-1"
                           >
                             Remove
                           </button>
                         ) : (
                           <button
                             onClick={() => includeFilteredFile(file)}
-                            className="text-xs font-bold text-primary hover:text-primary/70 transition-colors px-2 py-1"
+                            className="cursor-pointer text-xs font-bold text-primary hover:text-primary/70 transition-colors px-2 py-1"
                           >
                             Include
                           </button>
@@ -489,25 +489,27 @@ export default function ConfigurePage() {
       )}
 
       {/* Submit */}
-      <div className="flex justify-center">
-        <Button
-          size="lg"
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          className="gap-2 min-w-[240px]"
-        >
-          Start Analysis <ArrowRight size={18} />
-        </Button>
+      <div className="border-t border-foreground/10 pt-8 mt-2">
+        <div className="flex justify-center">
+          <Button
+            size="lg"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="gap-2 min-w-[240px] cursor-pointer"
+          >
+            Start Analysis <ArrowRight size={18} />
+          </Button>
+        </div>
+        {!canSubmit && (
+          <p className="text-center text-xs text-muted font-medium mt-3">
+            {noneSelected && !skillLevel
+              ? "Select files and a skill level to continue"
+              : noneSelected
+                ? "Select at least one file to continue"
+                : "Choose a skill level to continue"}
+          </p>
+        )}
       </div>
-      {!canSubmit && (
-        <p className="text-center text-xs text-muted font-medium mt-3">
-          {noneSelected && !skillLevel
-            ? "Select files and a skill level to continue"
-            : noneSelected
-              ? "Select at least one file to continue"
-              : "Choose a skill level to continue"}
-        </p>
-      )}
     </div>
   );
 }

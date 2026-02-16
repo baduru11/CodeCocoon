@@ -78,8 +78,8 @@ export default function HistoryPage() {
             <div
               key={session.id}
               className={cn(
-                "bg-surface border-3 border-foreground rounded-[4px] shadow-[5px_5px_0px_0px_#1A1A1A]",
-                "transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[3px_3px_0px_0px_#1A1A1A]"
+                "bg-surface border-2 border-foreground rounded-lg shadow-[4px_4px_0px_0px_#1E293B]",
+                "transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[3px_3px_0px_0px_#1E293B]"
               )}
             >
               <div className="flex items-center justify-between p-5">
@@ -123,7 +123,7 @@ export default function HistoryPage() {
                       href={session.repoUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 border-2 border-foreground/20 rounded-[4px] text-muted hover:text-foreground hover:border-foreground transition-colors"
+                      className="p-2 border-2 border-foreground/20 rounded-lg text-muted hover:text-foreground hover:border-foreground transition-colors"
                       title="Open on GitHub"
                     >
                       <ExternalLink size={16} />
@@ -134,13 +134,13 @@ export default function HistoryPage() {
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => handleDelete(session.id)}
-                        className="px-3 py-1.5 text-xs font-bold bg-red-500 text-white border-2 border-foreground rounded-[4px] shadow-[2px_2px_0px_0px_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+                        className="px-3 py-1.5 text-xs font-bold bg-red-500 text-white border-2 border-foreground rounded-lg shadow-[2px_2px_0px_0px_#1E293B] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
                       >
                         Delete
                       </button>
                       <button
                         onClick={() => setConfirmDeleteId(null)}
-                        className="px-3 py-1.5 text-xs font-bold bg-surface border-2 border-foreground/20 rounded-[4px] hover:border-foreground transition-colors"
+                        className="px-3 py-1.5 text-xs font-bold bg-surface border-2 border-foreground/20 rounded-lg hover:border-foreground transition-colors"
                       >
                         Cancel
                       </button>
@@ -148,7 +148,7 @@ export default function HistoryPage() {
                   ) : (
                     <button
                       onClick={() => setConfirmDeleteId(session.id)}
-                      className="p-2 border-2 border-foreground/20 rounded-[4px] text-muted hover:text-red-500 hover:border-red-500 transition-colors"
+                      className="p-2 border-2 border-foreground/20 rounded-lg text-muted hover:text-red-500 hover:border-red-500 transition-colors"
                       title="Delete project"
                     >
                       <Trash2 size={16} />

@@ -28,7 +28,7 @@ export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const { value: treeData, removeValue: clearTreeData } = useLocalStorage<FetchTreeResult | null>("treeData", null);
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
-  const [loadingSavedProjects, setLoadingSavedProjects] = useState(false);
+  const [, setLoadingSavedProjects] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -90,7 +90,7 @@ export default function DashboardPage() {
     <div className="max-w-5xl mx-auto px-4 py-12">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <div className="p-3 bg-accent-yellow border-3 border-foreground rounded-[4px] shadow-[5px_5px_0px_0px_#1A1A1A]">
+        <div className="p-3 bg-accent-yellow border-2 border-foreground rounded-lg shadow-[4px_4px_0px_0px_#1E293B]">
           <LayoutDashboard size={24} />
         </div>
         <div>
@@ -104,23 +104,29 @@ export default function DashboardPage() {
       {/* Quick Stats — derived from saved projects */}
       {totalProjects > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          <Card>
+          <Card className="rounded-xl border-foreground/15 bg-primary/5">
             <CardContent className="pt-6 text-center">
-              <GitBranch size={24} className="mx-auto mb-2" />
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/10 rounded-xl mb-3">
+                <GitBranch size={24} className="text-primary" />
+              </div>
               <p className="font-bold text-2xl">{totalProjects}</p>
               <p className="text-xs text-muted font-bold">Projects Analyzed</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="rounded-xl border-foreground/15 bg-secondary/5">
             <CardContent className="pt-6 text-center">
-              <BookOpen size={24} className="mx-auto mb-2" />
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-secondary/10 rounded-xl mb-3">
+                <BookOpen size={24} className="text-secondary" />
+              </div>
               <p className="font-bold text-2xl">{totalFiles}</p>
               <p className="text-xs text-muted font-bold">Total Files</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="rounded-xl border-foreground/15 bg-accent-yellow/5">
             <CardContent className="pt-6 text-center">
-              <GraduationCap size={24} className="mx-auto mb-2" />
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-accent-yellow/10 rounded-xl mb-3">
+                <GraduationCap size={24} className="text-accent-yellow" />
+              </div>
               <p className="font-bold text-2xl">{allTech.length}</p>
               <p className="text-xs text-muted font-bold">Technologies</p>
             </CardContent>
@@ -136,11 +142,11 @@ export default function DashboardPage() {
             {savedProjects.map((project) => (
               <div
                 key={project.id}
-                className="relative text-left p-4 bg-surface border-3 border-foreground rounded-[4px] shadow-[3px_3px_0px_0px_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+                className="relative text-left p-4 bg-surface border-2 border-foreground/15 rounded-xl shadow-[3px_3px_0px_0px_rgba(30,41,59,0.15)] hover:border-foreground/30 hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_rgba(30,41,59,0.15)] transition-all"
               >
                 <button
                   onClick={() => router.push("/results")}
-                  className="w-full text-left"
+                  className="cursor-pointer w-full text-left"
                 >
                   <div className="font-bold text-sm mb-2 truncate pr-8">{project.repoName}</div>
                   <div className="flex items-center gap-2 mb-2 text-xs text-muted">
@@ -171,13 +177,13 @@ export default function DashboardPage() {
                     <button
                       onClick={() => handleDeleteProject(project.id)}
                       disabled={deletingId === project.id}
-                      className="px-2 py-1 text-[10px] font-bold bg-red-500 text-white border-2 border-foreground rounded-[4px] shadow-[2px_2px_0px_0px_#1A1A1A] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all disabled:opacity-50"
+                      className="cursor-pointer px-2 py-1 text-[10px] font-bold bg-red-500 text-white border-2 border-foreground rounded-lg shadow-[2px_2px_0px_0px_#1E293B] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all disabled:opacity-50"
                     >
                       {deletingId === project.id ? <Loader2 size={10} className="animate-spin" /> : "Delete"}
                     </button>
                     <button
                       onClick={() => setConfirmDeleteId(null)}
-                      className="px-2 py-1 text-[10px] font-bold bg-surface border-2 border-foreground/20 rounded-[4px] hover:border-foreground transition-colors"
+                      className="cursor-pointer px-2 py-1 text-[10px] font-bold bg-surface border-2 border-foreground/15 rounded-lg hover:border-foreground transition-colors"
                     >
                       Cancel
                     </button>
@@ -185,7 +191,7 @@ export default function DashboardPage() {
                 ) : (
                   <button
                     onClick={() => setConfirmDeleteId(project.id)}
-                    className="absolute top-3 right-3 p-1.5 border-2 border-foreground/20 rounded-[4px] text-muted hover:text-red-500 hover:border-red-500 transition-colors"
+                    className="cursor-pointer absolute top-3 right-3 p-1.5 border-2 border-foreground/15 rounded-lg text-muted hover:text-red-500 hover:border-red-500 transition-colors"
                     title="Delete project"
                   >
                     <Trash2 size={14} />
@@ -201,27 +207,33 @@ export default function DashboardPage() {
       <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Link href="/connect">
-          <Card className="h-full hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none transition-all cursor-pointer">
+          <Card className="h-full rounded-xl border-foreground/15 hover:border-foreground/30 hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all cursor-pointer">
             <CardContent className="pt-6 text-center">
-              <GitBranch size={32} className="mx-auto mb-3" />
+              <div className="inline-flex items-center justify-center w-14 h-14 bg-secondary/10 rounded-2xl mb-4">
+                <GitBranch size={28} className="text-secondary" />
+              </div>
               <p className="font-bold mb-1">Analyze a Project</p>
               <p className="text-xs text-muted">Connect a GitHub repo</p>
             </CardContent>
           </Card>
         </Link>
         <Link href="/results">
-          <Card className="h-full hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none transition-all cursor-pointer">
+          <Card className="h-full rounded-xl border-foreground/15 hover:border-foreground/30 hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all cursor-pointer">
             <CardContent className="pt-6 text-center">
-              <BookOpen size={32} className="mx-auto mb-3" />
+              <div className="inline-flex items-center justify-center w-14 h-14 bg-primary/10 rounded-2xl mb-4">
+                <BookOpen size={28} className="text-primary" />
+              </div>
               <p className="font-bold mb-1">View Results</p>
               <p className="text-xs text-muted">Analysis results & learning paths</p>
             </CardContent>
           </Card>
         </Link>
         <Link href="/exercises">
-          <Card className="h-full hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none transition-all cursor-pointer">
+          <Card className="h-full rounded-xl border-foreground/15 hover:border-foreground/30 hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all cursor-pointer">
             <CardContent className="pt-6 text-center">
-              <Bug size={32} className="mx-auto mb-3" />
+              <div className="inline-flex items-center justify-center w-14 h-14 bg-accent-yellow/10 rounded-2xl mb-4">
+                <Bug size={28} className="text-accent-yellow" />
+              </div>
               <p className="font-bold mb-1">Practice Exercises</p>
               <p className="text-xs text-muted">Bug hunts & code challenges</p>
             </CardContent>

@@ -12,9 +12,6 @@ import {
   Loader2, CheckCircle2, Circle, ArrowRight, RotateCcw, AlertTriangle,
 } from "lucide-react";
 import type { ProcessConfig } from "@/types/github";
-import type { AnalysisResult } from "@/types/analysis";
-import type { LearningPath } from "@/types/learning";
-import type { Exercise } from "@/types/exercise";
 import type { ProjectSession } from "@/types/project-session";
 import { saveSession, setActiveSessionId } from "@/lib/project-sessions";
 
@@ -109,7 +106,7 @@ export default function ProcessingPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
       {/* Header */}
-      <div className="text-center mb-8">
+      <div className="text-center mb-10">
         <h1 className="text-4xl font-bold mb-2">
           {status === "complete"
             ? "Processing Complete!"
@@ -123,7 +120,7 @@ export default function ProcessingPage() {
       </div>
 
       {/* Progress Bar */}
-      <div className="mb-10">
+      <div className="mb-10 p-5 bg-surface/50 border border-foreground/10 rounded-2xl">
         <Progress
           value={progressPercent}
           label={currentStep}
@@ -132,7 +129,7 @@ export default function ProcessingPage() {
       </div>
 
       {/* Steps */}
-      <Card className="mb-8">
+      <Card className="mb-8 rounded-xl border-foreground/15">
         <CardContent className="py-6">
           <div className="space-y-1">
             {steps.map((step, index) => {
@@ -143,10 +140,10 @@ export default function ProcessingPage() {
                 <div
                   key={step.key}
                   className={cn(
-                    "flex items-center gap-4 px-4 py-3 rounded-[4px] transition-all",
-                    step.done && "bg-accent-green/8",
-                    isCurrent && "bg-secondary/8 border-2 border-secondary/30",
-                    isPending && "opacity-50"
+                    "flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all",
+                    step.done && "bg-accent-green/6",
+                    isCurrent && "bg-secondary/8 border border-secondary/25",
+                    isPending && "opacity-40"
                   )}
                   style={{
                     animationDelay: `${index * 50}ms`,
@@ -159,7 +156,7 @@ export default function ProcessingPage() {
                     ) : isCurrent ? (
                       <Loader2 size={22} className="animate-spin text-secondary" />
                     ) : (
-                      <Circle size={22} className="text-muted/40" />
+                      <Circle size={22} className="text-muted/30" />
                     )}
                   </div>
 
@@ -174,7 +171,14 @@ export default function ProcessingPage() {
                   </span>
 
                   {/* Step number */}
-                  <span className="text-[10px] font-bold text-muted bg-background px-2 py-0.5 border border-foreground/15 rounded-[2px]">
+                  <span className={cn(
+                    "text-[10px] font-bold px-2 py-0.5 border rounded-md",
+                    step.done
+                      ? "text-accent-green bg-accent-green/10 border-accent-green/20"
+                      : isCurrent
+                        ? "text-secondary bg-secondary/10 border-secondary/20"
+                        : "text-muted bg-background border-foreground/10"
+                  )}>
                     {index + 1}/{steps.length}
                   </span>
                 </div>
@@ -186,14 +190,16 @@ export default function ProcessingPage() {
 
       {/* Error State */}
       {status === "error" && error && (
-        <Card className="mb-8 border-primary">
+        <Card className="mb-8 border-primary/40 bg-primary/5 rounded-xl">
           <CardContent className="py-6">
             <div className="flex items-start gap-3">
-              <AlertTriangle size={20} className="text-primary shrink-0 mt-0.5" />
+              <div className="p-2 bg-primary/10 rounded-xl">
+                <AlertTriangle size={20} className="text-primary" />
+              </div>
               <div>
                 <p className="font-bold text-primary mb-1">Processing Error</p>
                 <p className="text-sm font-medium text-foreground mb-4">{error}</p>
-                <Button onClick={handleRetry} variant="outline" size="sm" className="gap-2">
+                <Button onClick={handleRetry} variant="outline" size="sm" className="gap-2 cursor-pointer">
                   <RotateCcw size={14} />
                   Retry
                 </Button>
@@ -205,14 +211,20 @@ export default function ProcessingPage() {
 
       {/* Complete State */}
       {status === "complete" && steps.every((s) => s.done) && (
-        <div className="flex justify-center">
-          <Button
-            size="lg"
-            onClick={() => router.push("/results")}
-            className="gap-2 min-w-[240px] animate-pulse-brutal"
-          >
-            View Results <ArrowRight size={18} />
-          </Button>
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent-green/10 border border-accent-green/25 rounded-full text-sm font-bold text-accent-green mb-6">
+            <CheckCircle2 size={16} />
+            All steps completed successfully
+          </div>
+          <div className="flex justify-center">
+            <Button
+              size="lg"
+              onClick={() => router.push("/results")}
+              className="gap-2 min-w-[240px] animate-pulse-brutal cursor-pointer"
+            >
+              View Results <ArrowRight size={18} />
+            </Button>
+          </div>
         </div>
       )}
     </div>

@@ -125,38 +125,40 @@ export default function ResultsPage() {
 
       {/* Summary Tab */}
       <div style={{ display: activeTab === "summary" ? "block" : "none" }}>
-        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-8">
           {/* LEFT: Table of Contents */}
           <nav className="hidden lg:block">
-            <div className="sticky top-20 space-y-1">
+            <div className="sticky top-20 p-3 bg-surface/50 border border-foreground/8 rounded-xl">
               <p className="text-xs font-bold text-muted uppercase tracking-wider mb-3 px-3">
                 Contents
               </p>
-              {SECTION_IDS.map((id) => {
-                const section = SECTION_LABELS[id];
-                const Icon = section.icon;
-                const isActive = activeId === id;
+              <div className="space-y-0.5">
+                {SECTION_IDS.map((id) => {
+                  const section = SECTION_LABELS[id];
+                  const Icon = section.icon;
+                  const isActive = activeId === id;
 
-                return (
-                  <a
-                    key={id}
-                    href={`#${id}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-                    }}
-                    className={cn(
-                      "flex items-center gap-2 px-3 py-2 rounded-[4px] text-sm font-medium transition-all border-l-3",
-                      isActive
-                        ? "bg-secondary/10 text-secondary font-bold border-secondary"
-                        : "text-muted hover:text-foreground border-transparent hover:border-foreground/20"
-                    )}
-                  >
-                    <Icon size={14} />
-                    {section.label}
-                  </a>
-                );
-              })}
+                  return (
+                    <a
+                      key={id}
+                      href={`#${id}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className={cn(
+                        "cursor-pointer flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border-l-2",
+                        isActive
+                          ? "bg-secondary/10 text-secondary font-bold border-secondary"
+                          : "text-muted hover:text-foreground border-transparent hover:border-foreground/20"
+                      )}
+                    >
+                      <Icon size={14} />
+                      {section.label}
+                    </a>
+                  );
+                })}
+              </div>
             </div>
           </nav>
 
@@ -175,10 +177,10 @@ export default function ResultsPage() {
                       document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
                     }}
                     className={cn(
-                      "whitespace-nowrap px-3 py-1.5 rounded-[4px] text-xs font-bold border-2 transition-all",
+                      "cursor-pointer whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all",
                       isActive
                         ? "bg-secondary text-white border-foreground"
-                        : "bg-surface text-muted border-foreground/20"
+                        : "bg-surface text-muted border-foreground/15"
                     )}
                   >
                     {section.label}
@@ -189,7 +191,7 @@ export default function ResultsPage() {
           </div>
 
           {/* CENTER: Content */}
-          <main className="min-w-0 space-y-10">
+          <main className="min-w-0 space-y-12">
             {/* Summary */}
             <section id="summary">
               <h2 className="flex items-center gap-2 text-xl font-bold mb-4">
@@ -217,7 +219,7 @@ export default function ResultsPage() {
               </h2>
               {architecture ? (
                 <div>
-                  <div className="mb-4">
+                  <div className="mb-5">
                     <Badge variant="secondary" className="text-sm px-3 py-1">
                       {architecture.pattern}
                     </Badge>
@@ -227,7 +229,7 @@ export default function ResultsPage() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {architecture.layers.map((layer, i) => (
-                      <Card key={i} className="border-2">
+                      <Card key={i} className="border-foreground/15 rounded-xl hover:border-foreground/25 transition-colors">
                         <CardContent className="pt-4 pb-4">
                           <p className="font-bold text-sm mb-1">{layer.name}</p>
                           <p className="text-xs text-muted mb-2">{layer.description}</p>
@@ -235,7 +237,7 @@ export default function ResultsPage() {
                             {layer.files.slice(0, 4).map((f) => (
                               <span
                                 key={f}
-                                className="text-[10px] font-mono bg-surface px-1.5 py-0.5 border border-foreground/20 rounded-[2px]"
+                                className="text-[10px] font-mono bg-surface px-1.5 py-0.5 border border-foreground/10 rounded-md"
                               >
                                 {f}
                               </span>
@@ -257,7 +259,7 @@ export default function ResultsPage() {
                         {architecture.entryPoints.map((ep) => (
                           <span
                             key={ep}
-                            className="text-xs font-mono bg-accent-yellow/20 px-2 py-0.5 border border-accent-yellow/40 rounded-[2px]"
+                            className="text-xs font-mono bg-accent-yellow/15 px-2 py-0.5 border border-accent-yellow/30 rounded-md"
                           >
                             {ep}
                           </span>
@@ -354,7 +356,7 @@ export default function ResultsPage() {
                   {keyFiles.map((file, i) => (
                     <div
                       key={i}
-                      className="p-3 border-2 border-foreground/15 rounded-[4px] hover:border-foreground/30 transition-colors"
+                      className="p-4 border border-foreground/10 rounded-xl hover:border-foreground/20 hover:bg-surface/50 transition-all"
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <code className="text-sm font-mono font-bold text-secondary">
@@ -400,7 +402,7 @@ export default function ResultsPage() {
                 onClick={handleSave}
                 disabled={saving}
                 variant="outline"
-                className="gap-2"
+                className="gap-2 cursor-pointer"
               >
                 {saving ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -421,7 +423,7 @@ export default function ResultsPage() {
       <div className="mt-6 text-center">
         <Link
           href="/connect"
-          className="inline-flex items-center gap-1 text-sm font-bold text-muted hover:text-foreground transition-colors"
+          className="cursor-pointer inline-flex items-center gap-1 text-sm font-bold text-muted hover:text-foreground transition-colors"
         >
           <Link2 size={14} />
           Analyze another repo
