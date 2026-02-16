@@ -103,6 +103,7 @@ export async function saveAnalysisResult(
     code_quality: analysis.codeQuality,
     key_files: analysis.keyFiles,
     summary: analysis.summary,
+    tutorial: analysis.tutorial ?? null,
   });
 
   if (error) {
@@ -253,6 +254,7 @@ function dbRowToAnalysis(row: Record<string, unknown>): AnalysisResult {
     codeQuality: (row.code_quality as AnalysisResult["codeQuality"]) ?? undefined,
     keyFiles: (row.key_files as AnalysisResult["keyFiles"]) ?? [],
     summary: typeof row.summary === "string" ? row.summary : "",
+    tutorial: (row.tutorial as AnalysisResult["tutorial"]) ?? undefined,
   };
 }
 

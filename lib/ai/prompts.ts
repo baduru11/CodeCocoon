@@ -1,4 +1,5 @@
 import type { RepoFile } from "@/types/github";
+import type { TutorialAbstraction, TutorialRelationships } from "@/types/tutorial";
 
 const MAX_LINES_PER_FILE = 150;
 const MAX_TOTAL_CHARS = 80_000;
@@ -47,6 +48,39 @@ function formatFilesStructureOnly(files: RepoFile[]): string {
     }
   }
   return parts.join("\n\n");
+}
+
+/** Format files with integer index markers for tutorial prompts. */
+function formatFilesWithIndices(files: RepoFile[]): { context: string; listing: string } {
+  let total = 0;
+  const contextParts: string[] = [];
+  const listingParts: string[] = [];
+
+  for (let i = 0; i < files.length; i++) {
+    if (total >= MAX_TOTAL_CHARS) break;
+    const f = files[i];
+    const lines = f.content.split("\n");
+    const truncated = lines.length > MAX_LINES_PER_FILE
+      ? lines.slice(0, MAX_LINES_PER_FILE).join("\n") + `\n... (${lines.length - MAX_LINES_PER_FILE} more lines)`
+      : f.content;
+    const chunk = `--- File Index ${i}: ${f.path} ---\n${truncated}`;
+    contextParts.push(chunk);
+    listingParts.push(`- ${i} # ${f.path}`);
+    total += chunk.length;
+  }
+
+  return {
+    context: contextParts.join("\n\n"),
+    listing: listingParts.join("\n"),
+  };
+}
+
+/** Get formatted file content for specific indices. */
+function getContentForIndices(files: RepoFile[], indices: number[]): string {
+  return indices
+    .filter((i) => i >= 0 && i < files.length)
+    .map((i) => `--- File: ${i} # ${files[i].path} ---\n${files[i].content}`)
+    .join("\n\n");
 }
 
 export const PROMPTS = {
@@ -419,5 +453,189 @@ OTHERWISE, evaluate normally:
 Be encouraging and educational. Remember, they're learning.
 
 Respond in JSON format: { "isCorrect": boolean, "feedback": "string" }`;
+  },
+
+  // ─── Tutorial Pipeline Prompts ─────────────────────────────────────
+
+  identifyAbstractions(files: RepoFile[], projectName: string, maxAbstractions = 10): string {
+    const { context, listing } = formatFilesWithIndices(files);
+    return `For the project \`${projectName}\`:
+
+Codebase Context:
+${context}
+
+Analyze the codebase context.
+Identify the top 5-${maxAbstractions} core most important abstractions to help those new to the codebase.
+
+For each abstraction, provide:
+1. A concise \`name\`.
+2. A beginner-friendly \`description\` explaining what it is with a simple analogy, in around 100 words.
+3. A list of relevant \`file_indices\` (integers) using the format \`idx # path/comment\`.
+
+List of file indices and paths present in the context:
+${listing}
+
+Format the output as a YAML list of dictionaries inside a fenced code block:
+
+\`\`\`yaml
+- name: |
+    Query Processing
+  description: |
+    Explains what the abstraction does.
+    It's like a central dispatcher routing requests.
+  file_indices:
+    - 0 # path/to/file1.py
+    - 3 # path/to/related.py
+- name: |
+    Query Optimization
+  description: |
+    Another core concept, similar to a blueprint for objects.
+  file_indices:
+    - 5 # path/to/another.js
+# ... up to ${maxAbstractions} abstractions
+\`\`\``;
+  },
+
+  analyzeRelationships(
+    files: RepoFile[],
+    abstractions: TutorialAbstraction[],
+    projectName: string
+  ): string {
+    const abstractionListing = abstractions
+      .map((a, i) => `${i} # ${a.name}`)
+      .join("\n");
+
+    const allFileIndices = [...new Set(abstractions.flatMap((a) => a.fileIndices))];
+    const fileContent = getContentForIndices(files, allFileIndices);
+
+    const abstractionDetails = abstractions
+      .map((a, i) =>
+        `- Index ${i}: ${a.name} (Relevant file indices: [${a.fileIndices.join(", ")}])\n  Description: ${a.description}`
+      )
+      .join("\n");
+
+    const context = `Abstraction Details:\n${abstractionDetails}\n\nRelevant Code:\n${fileContent}`;
+
+    return `Based on the following abstractions and relevant code snippets from the project \`${projectName}\`:
+
+List of Abstraction Indices and Names:
+${abstractionListing}
+
+Context (Abstractions, Descriptions, Code):
+${context}
+
+Please provide:
+1. A high-level \`summary\` of the project's main purpose and functionality in a few beginner-friendly sentences. Use markdown formatting with **bold** and *italic* text to highlight important concepts.
+2. A list (\`relationships\`) describing the key interactions between these abstractions. For each relationship, specify:
+    - \`from_abstraction\`: Index of the source abstraction (e.g., \`0 # AbstractionName1\`)
+    - \`to_abstraction\`: Index of the target abstraction (e.g., \`1 # AbstractionName2\`)
+    - \`label\`: A brief label for the interaction **in just a few words** (e.g., "Manages", "Inherits", "Uses").
+    Ideally the relationship should be backed by one abstraction calling or passing parameters to another.
+    Simplify the relationship and exclude those non-important ones.
+
+IMPORTANT: Make sure EVERY abstraction is involved in at least ONE relationship (either as source or target).
+
+Format the output as YAML:
+
+\`\`\`yaml
+summary: |
+  A brief, simple explanation of the project.
+  Can span multiple lines with **bold** and *italic* for emphasis.
+relationships:
+  - from_abstraction: 0 # AbstractionName1
+    to_abstraction: 1 # AbstractionName2
+    label: "Manages"
+  - from_abstraction: 2 # AbstractionName3
+    to_abstraction: 0 # AbstractionName1
+    label: "Provides config"
+\`\`\`
+
+Now, provide the YAML output:`;
+  },
+
+  orderChapters(
+    abstractions: TutorialAbstraction[],
+    relationships: TutorialRelationships,
+    projectName: string
+  ): string {
+    const abstractionListing = abstractions
+      .map((a, i) => `- ${i} # ${a.name}`)
+      .join("\n");
+
+    const relationshipContext = relationships.details
+      .map((r) =>
+        `From ${r.from} (${abstractions[r.from]?.name}) to ${r.to} (${abstractions[r.to]?.name}): ${r.label}`
+      )
+      .join("\n");
+
+    const context = `Project Summary:\n${relationships.summary}\n\nRelationships:\n${relationshipContext}`;
+
+    return `Given the following project abstractions and their relationships for the project \`${projectName}\`:
+
+Abstractions (Index # Name):
+${abstractionListing}
+
+Context about relationships and project summary:
+${context}
+
+If you are going to make a tutorial for \`${projectName}\`, what is the best order to explain these abstractions, from first to last?
+Ideally, first explain those that are the most important or foundational, perhaps user-facing concepts or entry points. Then move to more detailed, lower-level implementation details or supporting concepts.
+
+Output the ordered list of abstraction indices, including the name in a comment for clarity:
+
+\`\`\`yaml
+- 2 # FoundationalConcept
+- 0 # CoreClassA
+- 1 # CoreClassB (uses CoreClassA)
+\`\`\`
+
+Now, provide the YAML output:`;
+  },
+
+  writeChapter(params: {
+    projectName: string;
+    chapterNum: number;
+    abstractionName: string;
+    abstractionDescription: string;
+    fullChapterListing: string;
+    previousChaptersSummary: string;
+    fileContext: string;
+    prevChapter?: { num: number; name: string; filename: string };
+    nextChapter?: { num: number; name: string; filename: string };
+  }): string {
+    const {
+      projectName, chapterNum, abstractionName, abstractionDescription,
+      fullChapterListing, previousChaptersSummary, fileContext,
+      prevChapter, nextChapter,
+    } = params;
+
+    return `Write a very beginner-friendly tutorial chapter (in Markdown format) for the project \`${projectName}\` about the concept: "${abstractionName}". This is Chapter ${chapterNum}.
+
+Concept Details:
+- Name: ${abstractionName}
+- Description:
+${abstractionDescription}
+
+Complete Tutorial Structure:
+${fullChapterListing}
+
+Context from previous chapters:
+${previousChaptersSummary || "This is the first chapter."}
+
+Relevant Code Snippets:
+${fileContext}
+
+Instructions for the chapter:
+- Start with heading \`# Chapter ${chapterNum}: ${abstractionName}\`
+${prevChapter ? `- Begin with a brief transition from the previous chapter [${prevChapter.name}](${prevChapter.filename}) using a markdown link` : ""}
+- Start the main content with high-level motivation and a concrete use case
+- Break complex abstractions into key concepts, explain one by one
+- Code blocks MUST be BELOW 10 lines — break longer code into smaller pieces with explanations between them
+- Describe internal implementation with a mermaid \`sequenceDiagram\` (max 5 participants)
+- ALWAYS use proper Markdown links for other chapters: [Title](filename)
+- Use mermaid diagrams for complex concepts (flowcharts, sequence diagrams)
+- Heavily use analogies and examples to explain technical concepts
+${nextChapter ? `- End with a conclusion and transition to the next chapter [${nextChapter.name}](${nextChapter.filename}) using a markdown link` : "- End with a conclusion summarizing what was covered"}
+- Tone: welcoming, easy for newcomers, like explaining to a friend`;
   },
 };

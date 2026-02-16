@@ -29,6 +29,8 @@ export interface KeyFile {
   description: string;
 }
 
+import type { TutorialData } from "./tutorial";
+
 export interface AnalysisResult {
   id?: string;
   projectId?: string;
@@ -37,9 +39,21 @@ export interface AnalysisResult {
   codeQuality?: CodeQuality;
   keyFiles: KeyFile[];
   summary: string;
+  tutorial?: TutorialData;
 }
 
 export interface AnalysisStreamEvent {
-  type: "status" | "tech_stack" | "architecture" | "key_files" | "summary" | "complete" | "error";
+  type:
+    | "status"
+    | "tech_stack"
+    | "architecture"
+    | "key_files"
+    | "summary"
+    | "tutorial_abstractions"
+    | "tutorial_relationships"
+    | "tutorial_order"
+    | "tutorial_chapter"
+    | "complete"
+    | "error";
   data: unknown;
 }
