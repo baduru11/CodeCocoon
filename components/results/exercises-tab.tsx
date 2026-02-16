@@ -32,13 +32,13 @@ interface ExercisesTabProps {
 }
 
 const typeConfig: Record<string, { label: string; icon: typeof Bug; color: string }> = {
-  error_injection: { label: "Bug Hunt", icon: Bug, color: "bg-primary" },
-  code_recreation: { label: "Fill in Blank", icon: PenTool, color: "bg-secondary" },
-  code_explanation: { label: "Explain", icon: MessageSquare, color: "bg-accent-purple" },
-  mcq: { label: "Multiple Choice", icon: MessageSquare, color: "bg-secondary" },
-  output_prediction: { label: "Predict Output", icon: MessageSquare, color: "bg-accent-yellow" },
-  parsons: { label: "Code Order", icon: ArrowDownUp, color: "bg-accent-green" },
-  error_message: { label: "Fix the Error", icon: AlertTriangle, color: "bg-primary" },
+  error_injection: { label: "Bug Hunt", icon: Bug, color: "bg-primary text-white border-primary" },
+  code_recreation: { label: "Fill in Blank", icon: PenTool, color: "bg-secondary text-white border-secondary" },
+  code_explanation: { label: "Explain", icon: MessageSquare, color: "bg-accent-purple text-white border-accent-purple" },
+  mcq: { label: "Multiple Choice", icon: MessageSquare, color: "bg-secondary text-white border-secondary" },
+  output_prediction: { label: "Predict Output", icon: MessageSquare, color: "bg-accent-yellow text-foreground border-accent-yellow" },
+  parsons: { label: "Code Order", icon: ArrowDownUp, color: "bg-accent-green text-white border-accent-green" },
+  error_message: { label: "Fix the Error", icon: AlertTriangle, color: "bg-primary text-white border-primary" },
 };
 
 const EXERCISE_TYPES = [
@@ -452,7 +452,7 @@ export function ExercisesTab({ session }: ExercisesTabProps) {
           <h2 className="text-2xl font-bold">{exercise.title}</h2>
         </div>
         <div className="text-sm font-bold text-muted">
-          {completed.size}/{filteredExercises.length} done
+          {attempted.size}/{filteredExercises.length} done
         </div>
       </div>
 

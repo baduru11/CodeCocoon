@@ -37,8 +37,16 @@ function CodeBlock({
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
+  // Normalize code: handle escaped characters from JSON
+  const normalizedCode = code
+    .replace(/\\n/g, '\n')      // Convert \n to actual newlines
+    .replace(/\\t/g, '\t')      // Convert \t to actual tabs
+    .replace(/\\r/g, '\r')      // Convert \r to carriage returns
+    .replace(/\\"/g, '"')       // Convert \" to quotes
+    .replace(/\\\\/g, '\\');    // Convert \\ to single backslash
+
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(code);
+    await navigator.clipboard.writeText(normalizedCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -93,10 +101,13 @@ function CodeBlock({
             background: "#FFFFFF",
             fontSize: "0.875rem",
             fontFamily: "var(--font-mono), monospace",
-            overflowX: "hidden",
+            overflowX: "auto",
+          }}
+          lineProps={{
+            style: { whiteSpace: "pre", wordBreak: "normal" }
           }}
         >
-          {code}
+          {normalizedCode}
         </SyntaxHighlighter>
       </div>
     </div>
