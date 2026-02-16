@@ -5,6 +5,12 @@ import type { AnalysisResult } from "@/types/analysis";
 import type { LearningPath } from "@/types/learning";
 import type { Exercise } from "@/types/exercise";
 import type { ProcessConfig, FetchRepoResult } from "@/types/github";
+import type {
+  TutorialAbstraction,
+  TutorialRelationships,
+  TutorialChapter,
+  TutorialData,
+} from "@/types/tutorial";
 import { PROCESSING_STEPS } from "@/lib/constants";
 
 type ProcessingStatus = "idle" | "processing" | "complete" | "error";
@@ -137,6 +143,69 @@ export function useProcessing() {
                 },
               }));
               break;
+            case "tutorial_abstractions":
+              markStepDone("tutorial_abstractions");
+              setResults((prev) => ({
+                ...prev,
+                analysis: {
+                  ...prev.analysis,
+                  tutorial: {
+                    ...prev.analysis?.tutorial,
+                    abstractions: event.data as TutorialAbstraction[],
+                  } as TutorialData,
+                },
+              }));
+              break;
+            case "tutorial_relationships":
+              markStepDone("tutorial_relationships");
+              setResults((prev) => ({
+                ...prev,
+                analysis: {
+                  ...prev.analysis,
+                  tutorial: {
+                    ...prev.analysis?.tutorial,
+                    relationships: event.data as TutorialRelationships,
+                  } as TutorialData,
+                },
+              }));
+              break;
+            case "tutorial_order":
+              markStepDone("tutorial_order");
+              setResults((prev) => ({
+                ...prev,
+                analysis: {
+                  ...prev.analysis,
+                  tutorial: {
+                    ...prev.analysis?.tutorial,
+                    chapterOrder: event.data as number[],
+                  } as TutorialData,
+                },
+              }));
+              break;
+            case "tutorial_chapter": {
+              const { chapterNum, total, chapter } = event.data as {
+                chapterNum: number;
+                total: number;
+                chapter: TutorialChapter;
+              };
+              setResults((prev) => {
+                const existing = prev.analysis?.tutorial?.chapters ?? [];
+                return {
+                  ...prev,
+                  analysis: {
+                    ...prev.analysis,
+                    tutorial: {
+                      ...prev.analysis?.tutorial,
+                      chapters: [...existing, chapter],
+                    } as TutorialData,
+                  },
+                };
+              });
+              if (chapterNum === total) {
+                markStepDone("tutorial_chapters");
+              }
+              break;
+            }
             case "summary":
               markStepDone("summary");
               setResults((prev) => ({

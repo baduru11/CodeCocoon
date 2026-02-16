@@ -5,6 +5,7 @@ import { fetchContentForFiles } from "@/lib/github/fetcher";
 import { getLanguageStats } from "@/lib/github/filter";
 import { isValidGitHubName } from "@/lib/github/parser";
 import { createClient } from "@/lib/supabase/server";
+import { runTutorialPipeline } from "@/lib/ai/tutorial-pipeline";
 import type { RepoFile } from "@/types/github";
 
 interface ProcessRequest {
@@ -91,15 +92,18 @@ export async function POST(request: Request) {
 
           checkAborted();
 
-          // Steps 2-5: Run in parallel (all independent, all use fast model)
+          // Steps 2+: Analysis (parallel) + Tutorial pipeline (sequential) run concurrently
           send("step_start", "tech_stack");
           send("step_start", "architecture");
           send("step_start", "key_files");
-          send("step_start", "summary");
           send("status", "Analyzing codebase...");
 
-          const [techStackResult, archResult, keyFilesResult, summaryResult] =
-            await Promise.all([
+          const projectName = `${owner}/${repo}`;
+
+          // Analysis + tutorial pipeline run concurrently; the Gemini
+          // throttle in lib/ai/gemini.ts handles per-model rate limiting.
+          const [analysisResults, tutorialData] = await Promise.all([
+            Promise.all([
               ai.generate({
                 model: GEMINI_MODELS.fast,
                 messages: [{ role: "user", content: PROMPTS.analyzeTechStack(files) }],
@@ -117,11 +121,11 @@ export async function POST(request: Request) {
                 messages: [{ role: "user", content: PROMPTS.identifyKeyFiles(files) }],
                 responseFormat: "json",
               }),
-              ai.generate({
-                model: GEMINI_MODELS.fast,
-                messages: [{ role: "user", content: PROMPTS.generateSummary(files) }],
-              }),
-            ]);
+            ]),
+            runTutorialPipeline(ai, files, projectName, send, checkAborted),
+          ]);
+
+          const [techStackResult, archResult, keyFilesResult] = analysisResults;
 
           let techStack: { languages?: string[]; frameworks?: string[] };
           try {
@@ -147,11 +151,12 @@ export async function POST(request: Request) {
           }
           send("key_files", keyFiles);
 
-          send("summary", summaryResult.content);
+          // Backward-compat: send summary string extracted from tutorial
+          send("summary", tutorialData.relationships.summary);
 
           checkAborted();
 
-          // Steps 6-7: Learning path + exercises in parallel (both use deep model)
+          // Learning path + exercises in parallel (both use deep model)
           send("step_start", "learning_path");
           send("step_start", "exercises");
           send("status", "Generating learning path & exercises...");
@@ -171,7 +176,7 @@ export async function POST(request: Request) {
             })
             .join("\n\n");
 
-          const analysisContext = `Summary: ${summaryResult.content}\nArchitecture: ${JSON.stringify(architecture)}`;
+          const analysisContext = `Summary: ${tutorialData.relationships.summary}\nArchitecture: ${JSON.stringify(architecture)}`;
           const learningPathPrompt = PROMPTS.generateLearningPathWithContext(
             techStackList,
             skillLevel || "beginner",
@@ -243,7 +248,8 @@ export async function POST(request: Request) {
               techStack,
               architecture,
               keyFiles,
-              summary: summaryResult.content,
+              summary: tutorialData.relationships.summary,
+              tutorial: tutorialData,
             },
             learningPath,
             exercises,

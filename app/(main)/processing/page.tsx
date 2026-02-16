@@ -62,6 +62,7 @@ export default function ProcessingPage() {
           architecture: results.analysis.architecture ?? { pattern: "Unknown", description: "", layers: [], entryPoints: [] },
           keyFiles: results.analysis.keyFiles ?? [],
           summary: results.analysis.summary ?? "",
+          tutorial: results.analysis.tutorial,
         },
         learningPath: results.learningPath ?? {
           id: "",

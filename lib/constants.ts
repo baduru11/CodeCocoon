@@ -145,7 +145,10 @@ export const PROCESSING_STEPS = [
   { key: "tech_stack", label: "Detecting tech stack" },
   { key: "architecture", label: "Analyzing architecture" },
   { key: "key_files", label: "Identifying key files" },
-  { key: "summary", label: "Writing summary" },
+  { key: "tutorial_abstractions", label: "Identifying core concepts" },
+  { key: "tutorial_relationships", label: "Mapping relationships" },
+  { key: "tutorial_order", label: "Planning chapter order" },
+  { key: "tutorial_chapters", label: "Writing tutorial chapters" },
   { key: "learning_path", label: "Generating learning path" },
   { key: "exercises", label: "Creating exercises" },
 ] as const;
