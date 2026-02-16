@@ -19,7 +19,7 @@ const TABS: { id: TabId; label: string; icon: typeof BookOpen }[] = [
 
 export function SectionTabs({ activeTab, onTabChange, exerciseProgress }: SectionTabsProps) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex gap-1 border-b-2 border-foreground/10">
       {TABS.map((tab) => {
         const Icon = tab.icon;
         const isActive = activeTab === tab.id;
@@ -29,10 +29,10 @@ export function SectionTabs({ activeTab, onTabChange, exerciseProgress }: Sectio
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
             className={cn(
-              "flex items-center gap-2 px-4 py-2.5 rounded-[4px] font-bold text-sm border-3 transition-all",
+              "relative flex items-center gap-2 px-5 py-3 font-bold text-sm transition-all duration-200 -mb-[2px] border-b-2 cursor-pointer",
               isActive
-                ? "bg-secondary text-white border-foreground shadow-[3px_3px_0px_0px_#1A1A1A]"
-                : "bg-surface text-muted border-foreground/20 hover:border-foreground/40 hover:translate-x-[1px] hover:translate-y-[1px]"
+                ? "text-foreground border-primary"
+                : "text-muted border-transparent hover:text-foreground hover:border-foreground/20"
             )}
           >
             <Icon size={16} />
@@ -40,10 +40,10 @@ export function SectionTabs({ activeTab, onTabChange, exerciseProgress }: Sectio
             {tab.id === "exercises" && exerciseProgress && exerciseProgress.total > 0 && (
               <span
                 className={cn(
-                  "ml-1 px-1.5 py-0.5 rounded-[4px] text-[10px] font-bold",
+                  "ml-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold",
                   isActive
-                    ? "bg-white/20 text-white"
-                    : "bg-foreground/10 text-muted"
+                    ? "bg-primary/10 text-primary"
+                    : "bg-foreground/5 text-muted"
                 )}
               >
                 {exerciseProgress.completed}/{exerciseProgress.total}

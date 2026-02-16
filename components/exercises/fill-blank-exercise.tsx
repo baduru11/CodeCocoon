@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   CheckCircle2,
   XCircle,
@@ -77,7 +76,7 @@ function FillBlankExercise({ exercise, onComplete }: FillBlankExerciseProps) {
           <span
             key={i}
             className={cn(
-              "inline-block px-2 py-0.5 rounded-[4px] font-bold text-sm mx-0.5 border-2",
+              "inline-block px-2 py-0.5 rounded-lg font-bold text-sm mx-0.5 border-2",
               submitted && result === true &&
                 "bg-accent-green/20 text-accent-green border-accent-green/40",
               submitted && result === false &&
@@ -115,8 +114,8 @@ function FillBlankExercise({ exercise, onComplete }: FillBlankExerciseProps) {
       </Card>
 
       {/* Code with blanks */}
-      <div className="border-3 border-foreground rounded-[4px] shadow-[5px_5px_0px_0px_#1A1A1A] overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 bg-foreground text-surface border-b-3 border-foreground">
+      <div className="border-2 border-foreground/15 rounded-xl shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 bg-foreground text-surface border-b border-surface/10">
           <span className="text-sm font-bold font-mono">
             {exercise.relatedFile}
           </span>
@@ -164,7 +163,7 @@ function FillBlankExercise({ exercise, onComplete }: FillBlankExerciseProps) {
                 <div key={num} className="flex items-center gap-3">
                   <span
                     className={cn(
-                      "w-8 h-8 flex items-center justify-center border-2 border-foreground rounded-[4px] text-sm font-bold shrink-0",
+                      "w-8 h-8 flex items-center justify-center border-2 rounded-lg text-sm font-bold shrink-0",
                       submitted && result === true &&
                         "bg-accent-green text-white border-accent-green",
                       submitted && result === false &&
@@ -192,17 +191,16 @@ function FillBlankExercise({ exercise, onComplete }: FillBlankExerciseProps) {
                         }))
                       }
                       disabled={submitted}
-                      placeholder={`Blank ${num}`}
+                      placeholder={`Type your answer for blank ${num}...`}
                       className={cn(
-                        "w-full px-3 py-2 bg-surface border-3 border-foreground rounded-[4px] font-mono text-sm",
-                        "shadow-[3px_3px_0px_0px_#1A1A1A]",
-                        "focus:shadow-[5px_5px_0px_0px_#1A1A1A] focus:outline-none",
-                        "transition-shadow placeholder:text-muted/60",
-                        "disabled:opacity-70 disabled:cursor-not-allowed",
+                        "w-full px-3 py-2 bg-surface border-2 border-foreground/20 rounded-xl font-mono text-sm",
+                        "focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20",
+                        "transition-all duration-200 placeholder:text-muted/40 placeholder:italic",
+                        "disabled:opacity-70 disabled:cursor-not-allowed cursor-text",
                         submitted && result === true &&
-                          "border-accent-green bg-accent-green/5 shadow-[3px_3px_0px_0px_#05E17A]",
+                          "border-accent-green bg-accent-green/5",
                         submitted && result === false &&
-                          "border-primary bg-primary/5 shadow-[3px_3px_0px_0px_#FF6B6B]"
+                          "border-primary bg-primary/5"
                       )}
                     />
                   </div>
@@ -224,7 +222,7 @@ function FillBlankExercise({ exercise, onComplete }: FillBlankExerciseProps) {
           {(exercise.hints ?? []).slice(0, hintsRevealed).map((hint, i) => (
             <div
               key={i}
-              className="flex items-start gap-2 p-3 bg-accent-yellow/10 border-2 border-accent-yellow/40 rounded-[4px]"
+              className="flex items-start gap-2 p-3 bg-accent-yellow/10 border border-accent-yellow/30 rounded-xl"
             >
               <Lightbulb
                 size={14}
@@ -250,7 +248,7 @@ function FillBlankExercise({ exercise, onComplete }: FillBlankExerciseProps) {
                 const key = num.toString();
                 return (
                   <div key={num} className="flex items-center gap-2">
-                    <span className="w-7 h-7 flex items-center justify-center border-2 border-foreground rounded-[4px] text-xs font-bold bg-accent-purple/10 shrink-0">
+                    <span className="w-7 h-7 flex items-center justify-center border-2 border-foreground rounded-lg text-xs font-bold bg-accent-purple/10 shrink-0">
                       {num}
                     </span>
                     <code className="text-sm font-mono font-bold text-accent-purple">
@@ -271,7 +269,7 @@ function FillBlankExercise({ exercise, onComplete }: FillBlankExerciseProps) {
             <Button
               onClick={handleSubmit}
               disabled={!allFilled || revealed}
-              className="gap-2"
+              className="gap-2 cursor-pointer"
             >
               <CheckCircle2 size={16} />
               Check Answers
@@ -281,7 +279,7 @@ function FillBlankExercise({ exercise, onComplete }: FillBlankExerciseProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => setHintsRevealed((p) => p + 1)}
-                className="gap-1"
+                className="gap-1 cursor-pointer"
               >
                 <Lightbulb size={14} /> Hint ({hintsRevealed}/
                 {(exercise.hints ?? []).length})
@@ -292,7 +290,7 @@ function FillBlankExercise({ exercise, onComplete }: FillBlankExerciseProps) {
                 variant="ghost"
                 size="sm"
                 onClick={() => { setShowAnswer(true); setRevealed(true); }}
-                className="gap-1"
+                className="gap-1 cursor-pointer"
               >
                 <Eye size={14} />
                 Show Answer

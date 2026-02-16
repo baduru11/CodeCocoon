@@ -92,7 +92,7 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
       {/* Options */}
       <div className="grid gap-3">
         {(!exercise.options || !Array.isArray(exercise.options) || exercise.options.length === 0) ? (
-          <div className="p-6 bg-accent-yellow/10 border-3 border-accent-yellow/40 rounded-[4px] text-center">
+          <div className="p-6 bg-accent-yellow/10 border border-accent-yellow/30 rounded-xl text-center">
             <p className="font-bold text-sm mb-1">Options not available</p>
             <p className="text-xs text-muted">The AI did not generate options for this question. Try regenerating exercises.</p>
           </div>
@@ -109,20 +109,19 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
                 }}
                 disabled={submitted}
                 className={cn(
-                  "w-full text-left p-4 border-3 border-foreground rounded-[4px] font-medium transition-all",
-                  "shadow-[3px_3px_0px_0px_#1A1A1A]",
+                  "w-full text-left p-4 border-2 rounded-xl font-medium transition-all duration-200",
                   "disabled:cursor-default",
-                  state === "idle" && !submitted && "bg-surface hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none cursor-pointer",
-                  state === "idle" && submitted && "bg-surface opacity-60",
-                  state === "selected" && "bg-secondary/10 border-secondary shadow-[3px_3px_0px_0px_#5294FF]",
-                  state === "correct" && "bg-accent-green/15 border-accent-green shadow-[3px_3px_0px_0px_#05E17A]",
-                  state === "wrong" && "bg-primary/15 border-primary shadow-[3px_3px_0px_0px_#FF6B6B]"
+                  state === "idle" && !submitted && "bg-surface border-foreground/20 hover:border-foreground/40 hover:bg-foreground/[0.02] cursor-pointer",
+                  state === "idle" && submitted && "bg-surface border-foreground/10 opacity-60",
+                  state === "selected" && "bg-secondary/10 border-secondary ring-2 ring-secondary/20 cursor-pointer",
+                  state === "correct" && "bg-accent-green/10 border-accent-green ring-2 ring-accent-green/20",
+                  state === "wrong" && "bg-primary/10 border-primary ring-2 ring-primary/20"
                 )}
               >
                 <div className="flex items-start gap-3">
                   <span
                     className={cn(
-                      "flex-shrink-0 w-8 h-8 flex items-center justify-center border-2 border-foreground rounded-[4px] text-sm font-bold",
+                      "flex-shrink-0 w-9 h-9 flex items-center justify-center border-2 rounded-xl text-sm font-bold transition-colors duration-200",
                       state === "idle" && "bg-surface",
                       state === "selected" && "bg-secondary text-white border-secondary",
                       state === "correct" && "bg-accent-green text-foreground border-accent-green",
@@ -147,7 +146,7 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
 
       {/* Warning: no correct answer resolved */}
       {exercise.options && exercise.options.length > 0 && resolvedCorrectIndex === undefined && !submitted && (
-        <div className="p-4 bg-accent-yellow/10 border-2 border-accent-yellow/40 rounded-[4px] text-sm">
+        <div className="p-4 bg-accent-yellow/10 border border-accent-yellow/30 rounded-xl text-sm">
           <p className="font-bold text-accent-yellow">Unable to determine the correct answer for this question.</p>
           <p className="text-xs text-muted mt-1">Try regenerating exercises or skip this one.</p>
         </div>
@@ -247,7 +246,7 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
                   </p>
                   {/* Show correct answer when wrong */}
                   {!isCorrect && resolvedCorrectIndex !== undefined && exercise.options && (
-                    <div className="mb-3 p-3 bg-accent-green/10 border-2 border-accent-green/30 rounded-[4px]">
+                    <div className="mb-3 p-3 bg-accent-green/10 border border-accent-green/30 rounded-xl">
                       <p className="text-sm font-bold text-accent-green mb-1">
                         Correct Answer: {optionLabels[resolvedCorrectIndex]}
                       </p>

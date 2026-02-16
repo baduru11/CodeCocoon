@@ -138,11 +138,10 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
                   onClick={() => addToPlaced(line)}
                   disabled={submitted}
                   className={cn(
-                    "w-full text-left px-4 py-2.5 border-3 border-foreground rounded-[4px] font-mono text-sm",
-                    "shadow-[3px_3px_0px_0px_#1A1A1A] transition-all",
+                    "w-full text-left px-4 py-2.5 border-2 rounded-xl font-mono text-sm transition-all",
                     !submitted &&
-                      "bg-surface hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none cursor-pointer hover:bg-accent-green/10",
-                    submitted && "bg-surface opacity-60 cursor-default"
+                      "bg-surface border-foreground/20 hover:border-accent-green/50 hover:bg-accent-green/5 cursor-pointer",
+                    submitted && "bg-surface border-foreground/10 opacity-60 cursor-default"
                   )}
                 >
                   <div className="flex items-center gap-3">
@@ -183,9 +182,13 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
         </CardHeader>
         <CardContent>
           {placed.length === 0 ? (
-            <div className="py-8 text-center border-2 border-dashed border-foreground/20 rounded-[4px]">
-              <p className="text-sm text-muted font-medium">
-                Click lines above to add them here in the correct order
+            <div className="py-10 text-center border-2 border-dashed border-secondary/30 rounded-xl bg-secondary/5">
+              <ArrowRight size={24} className="mx-auto mb-2 text-secondary/40" />
+              <p className="text-sm text-muted font-bold">
+                Drop zone -- click lines above to place them here
+              </p>
+              <p className="text-xs text-muted/60 mt-1">
+                Arrange the code lines in the correct order
               </p>
             </div>
           ) : (
@@ -196,24 +199,23 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
                   <div
                     key={`placed-${index}`}
                     className={cn(
-                      "flex items-center gap-2 px-3 py-2.5 border-3 border-foreground rounded-[4px] font-mono text-sm",
-                      "shadow-[3px_3px_0px_0px_#1A1A1A]",
+                      "flex items-center gap-2 px-3 py-2.5 border-2 rounded-xl font-mono text-sm transition-colors",
                       submitted && result === true &&
-                        "border-accent-green bg-accent-green/10 shadow-[3px_3px_0px_0px_#05E17A]",
+                        "border-accent-green bg-accent-green/10",
                       submitted && result === false &&
-                        "border-primary bg-primary/10 shadow-[3px_3px_0px_0px_#FF6B6B]",
-                      !submitted && "bg-surface"
+                        "border-primary bg-primary/10",
+                      !submitted && "bg-surface border-foreground/20"
                     )}
                   >
                     {/* Line number */}
                     <span
                       className={cn(
-                        "w-7 h-7 flex items-center justify-center border-2 border-foreground rounded-[4px] text-xs font-bold shrink-0",
+                        "w-7 h-7 flex items-center justify-center border-2 rounded-lg text-xs font-bold shrink-0",
                         submitted && result === true &&
                           "bg-accent-green text-white border-accent-green",
                         submitted && result === false &&
                           "bg-primary text-white border-primary",
-                        !submitted && "bg-foreground/5"
+                        !submitted && "bg-foreground/5 border-foreground/20"
                       )}
                     >
                       {submitted ? (
@@ -251,20 +253,20 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
                         <button
                           onClick={() => moveUp(index)}
                           disabled={index === 0}
-                          className="p-1 rounded-[4px] hover:bg-foreground/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="p-1 rounded-lg hover:bg-foreground/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors duration-200"
                         >
                           <ChevronUp size={14} />
                         </button>
                         <button
                           onClick={() => moveDown(index)}
                           disabled={index >= placed.length - 1}
-                          className="p-1 rounded-[4px] hover:bg-foreground/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="p-1 rounded-lg hover:bg-foreground/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors duration-200"
                         >
                           <ChevronDown size={14} />
                         </button>
                         <button
                           onClick={() => removeFromPlaced(index)}
-                          className="p-1 rounded-[4px] hover:bg-primary/10 text-primary"
+                          className="p-1 rounded-lg hover:bg-primary/10 text-primary cursor-pointer transition-colors duration-200"
                         >
                           <X size={14} />
                         </button>
@@ -284,7 +286,7 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
           {(exercise.hints ?? []).slice(0, hintsRevealed).map((hint, i) => (
             <div
               key={i}
-              className="flex items-start gap-2 p-3 bg-accent-yellow/10 border-2 border-accent-yellow/40 rounded-[4px]"
+              className="flex items-start gap-2 p-3 bg-accent-yellow/10 border border-accent-yellow/30 rounded-xl"
             >
               <Lightbulb
                 size={14}
@@ -306,7 +308,7 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
           </CardHeader>
           <CardContent>
             <pre
-              className="p-4 bg-white font-mono text-sm leading-relaxed rounded-[4px] border-2 border-foreground/10 overflow-x-auto"
+              className="p-4 bg-white font-mono text-sm leading-relaxed rounded-xl border border-foreground/10 overflow-x-auto"
             >
               {correctOrder.join("\n")}
             </pre>
@@ -321,7 +323,7 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
             <Button
               onClick={handleSubmit}
               disabled={placed.length !== shuffledLines.length || revealed}
-              className="gap-2"
+              className="gap-2 cursor-pointer"
             >
               <CheckCircle2 size={16} />
               Check Order
@@ -331,7 +333,7 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => setHintsRevealed((p) => p + 1)}
-                className="gap-1"
+                className="gap-1 cursor-pointer"
               >
                 <Lightbulb size={14} /> Hint ({hintsRevealed}/
                 {(exercise.hints ?? []).length})
@@ -342,7 +344,7 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
                 variant="ghost"
                 size="sm"
                 onClick={() => { setShowAnswer(true); setRevealed(true); }}
-                className="gap-1"
+                className="gap-1 cursor-pointer"
               >
                 <Eye size={14} />
                 Show Answer
@@ -374,7 +376,7 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
               </CardHeader>
               <CardContent>
                 <pre
-                  className="p-4 bg-white font-mono text-sm leading-relaxed rounded-[4px] border-2 border-foreground/10"
+                  className="p-4 bg-white font-mono text-sm leading-relaxed rounded-xl border border-foreground/10"
                   style={{
                     whiteSpace: "pre-wrap",
                     wordBreak: "break-word",

@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
-  BookOpen,
 } from "lucide-react";
 import type { LearningPath } from "@/types/learning";
 
@@ -64,16 +63,24 @@ export function LearningPathTab({ learningPath }: LearningPathTabProps) {
       <div className="space-y-4">
         {learningPath.modules.map((mod, mi) => {
           const isExpanded = expandedModules.has(mod.id);
+          const accentColors = [
+            "border-l-primary",
+            "border-l-secondary",
+            "border-l-accent-yellow",
+            "border-l-accent-green",
+            "border-l-accent-purple",
+          ];
+          const accentColor = accentColors[mi % accentColors.length];
 
           return (
-            <Card key={mod.id} className="border-3 border-foreground/20 overflow-hidden">
+            <Card key={mod.id} className={cn("border-2 border-foreground/15 overflow-hidden border-l-[5px]", accentColor)}>
               <button
                 onClick={() => toggleModule(mod.id)}
-                className="w-full text-left p-4 flex items-center justify-between hover:bg-surface/50 transition-colors"
+                className="w-full text-left p-4 flex items-center justify-between hover:bg-foreground/[0.02] transition-colors cursor-pointer"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-bold text-white bg-foreground px-2 py-0.5 rounded-[4px]">
+                    <span className="text-xs font-bold text-white bg-foreground px-2 py-0.5 rounded-md">
                       M{mi + 1}
                     </span>
                     <Badge variant="default" className="text-xs">
@@ -100,24 +107,26 @@ export function LearningPathTab({ learningPath }: LearningPathTabProps) {
                       <div
                         key={lesson.id}
                         className={cn(
-                          "p-3 rounded-[4px] border-2 border-foreground/10",
+                          "p-3 rounded-xl border border-foreground/10",
                           "hover:border-foreground/20 transition-colors"
                         )}
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          <BookOpen size={14} className="text-secondary shrink-0" />
+                          <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-secondary text-white text-xs font-bold border-2 border-secondary">
+                            {li + 1}
+                          </span>
                           <p className="text-sm font-bold">{lesson.title}</p>
                         </div>
-                        <p className="text-xs text-muted font-medium ml-[22px]">
+                        <p className="text-xs text-muted font-medium ml-8">
                           {lesson.description}
                         </p>
                         {lesson.keyConceptsFromCode && (
-                          <p className="text-xs text-secondary/80 font-medium ml-[22px] mt-1 italic">
+                          <p className="text-xs text-secondary/80 font-medium ml-8 mt-1 italic">
                             From your code: {lesson.keyConceptsFromCode}
                           </p>
                         )}
                         {lesson.resources.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-2 ml-[22px]">
+                          <div className="flex flex-wrap gap-2 mt-2 ml-8">
                             {lesson.resources.map((res, ri) => (
                               <a
                                 key={ri}
@@ -125,9 +134,10 @@ export function LearningPathTab({ learningPath }: LearningPathTabProps) {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className={cn(
-                                  "inline-flex items-center gap-1 text-xs font-bold px-2 py-1",
-                                  "rounded-[4px] border-2 border-foreground/15",
-                                  "text-secondary hover:bg-secondary/10 hover:border-secondary/30 transition-colors"
+                                  "inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5",
+                                  "rounded-lg border border-foreground/15 bg-surface",
+                                  "text-secondary hover:bg-secondary/10 hover:border-secondary/30",
+                                  "transition-all duration-200 cursor-pointer"
                                 )}
                               >
                                 <ExternalLink size={10} />

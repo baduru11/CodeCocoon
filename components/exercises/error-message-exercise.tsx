@@ -77,20 +77,33 @@ function ErrorMessageExercise({
         </CardContent>
       </Card>
 
-      {/* Error Message — prominent red display */}
+      {/* Error Message — terminal-style red display */}
       {errorMessage && (
-        <div className="border-3 border-primary rounded-[4px] shadow-[5px_5px_0px_0px_#FF6B6B] overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-2 bg-primary text-white border-b-3 border-primary">
-            <AlertTriangle size={16} />
-            <span className="text-sm font-bold">Error Output</span>
+        <div className="border-2 border-primary/60 rounded-xl shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-2 bg-primary text-white border-b border-primary/80">
+            <AlertTriangle size={16} className="animate-pulse" />
+            <span className="text-sm font-bold font-mono tracking-wide">ERROR OUTPUT</span>
+            <div className="ml-auto flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
+              <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
+              <span className="w-2.5 h-2.5 rounded-full bg-green-400" />
+            </div>
           </div>
-          <div className="p-4 bg-primary/5">
+          <div className="relative p-4 bg-[#1a0a0a]">
+            {/* Subtle scanline effect */}
+            <div
+              className="absolute inset-0 pointer-events-none opacity-[0.03]"
+              style={{
+                backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.1) 2px, rgba(255,255,255,0.1) 4px)",
+              }}
+            />
             <pre
-              className="font-mono text-sm text-primary font-bold leading-relaxed"
+              className="relative font-mono text-sm text-red-400 font-bold leading-relaxed"
               style={{
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
                 overflowWrap: "break-word",
+                textShadow: "0 0 8px rgba(239,68,68,0.3)",
               }}
             >
               {errorMessage}
@@ -124,7 +137,7 @@ function ErrorMessageExercise({
             <Button
               onClick={handleSubmit}
               disabled={!userAnswer.trim() || submitting || revealed}
-              className="gap-2"
+              className="gap-2 cursor-pointer"
             >
               {submitting ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -138,7 +151,7 @@ function ErrorMessageExercise({
                 variant="outline"
                 size="sm"
                 onClick={() => setHintsRevealed((p) => p + 1)}
-                className="gap-1"
+                className="gap-1 cursor-pointer"
               >
                 <Lightbulb size={14} /> Hint ({hintsRevealed}/
                 {(exercise.hints ?? []).length})
@@ -149,7 +162,7 @@ function ErrorMessageExercise({
                 variant="ghost"
                 size="sm"
                 onClick={() => { setShowAnswer(true); setRevealed(true); }}
-                className="gap-1"
+                className="gap-1 cursor-pointer"
               >
                 <Eye size={14} />
                 Show Answer
@@ -165,7 +178,7 @@ function ErrorMessageExercise({
           {(exercise.hints ?? []).slice(0, hintsRevealed).map((hint, i) => (
             <div
               key={i}
-              className="flex items-start gap-2 p-3 bg-accent-yellow/10 border-2 border-accent-yellow/40 rounded-[4px]"
+              className="flex items-start gap-2 p-3 bg-accent-yellow/10 border border-accent-yellow/30 rounded-xl"
             >
               <Lightbulb
                 size={14}

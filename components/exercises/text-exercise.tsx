@@ -107,7 +107,7 @@ function TextExercise({ exercise, onComplete }: TextExerciseProps) {
             <Button
               onClick={handleSubmit}
               disabled={!userAnswer.trim() || submitting || revealed}
-              className="gap-2"
+              className="gap-2 cursor-pointer"
             >
               {submitting ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -121,7 +121,7 @@ function TextExercise({ exercise, onComplete }: TextExerciseProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => setHintsRevealed((p) => p + 1)}
-                className="gap-1"
+                className="gap-1 cursor-pointer"
               >
                 <Lightbulb size={14} /> Hint ({hintsRevealed}/
                 {(exercise.hints ?? []).length})
@@ -132,7 +132,7 @@ function TextExercise({ exercise, onComplete }: TextExerciseProps) {
                 variant="ghost"
                 size="sm"
                 onClick={() => { setShowAnswer(true); setRevealed(true); }}
-                className="gap-1"
+                className="gap-1 cursor-pointer"
               >
                 <Eye size={14} />
                 Show Answer
@@ -148,13 +148,18 @@ function TextExercise({ exercise, onComplete }: TextExerciseProps) {
           {(exercise.hints ?? []).slice(0, hintsRevealed).map((hint, i) => (
             <div
               key={i}
-              className="flex items-start gap-2 p-3 bg-accent-yellow/10 border-2 border-accent-yellow/40 rounded-[4px]"
+              className="flex items-start gap-3 p-4 bg-accent-yellow/10 border border-accent-yellow/30 rounded-xl"
             >
-              <Lightbulb
-                size={14}
-                className="mt-0.5 text-accent-yellow shrink-0"
-              />
-              <p className="text-sm font-medium">{hint}</p>
+              <div className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-accent-yellow/30 border border-accent-yellow/50">
+                <Lightbulb
+                  size={14}
+                  className="text-accent-yellow"
+                />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-accent-yellow mb-0.5">Hint {i + 1}</p>
+                <p className="text-sm font-medium">{hint}</p>
+              </div>
             </div>
           ))}
         </div>

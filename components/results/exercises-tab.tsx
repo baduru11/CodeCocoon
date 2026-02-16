@@ -79,10 +79,8 @@ export function ExercisesTab({ session }: ExercisesTabProps) {
     setCurrentEx((prev) => Math.min(prev + 1, filteredExercises.length - 1));
   }, [filteredExercises.length]);
 
-  const handleComplete = useCallback(
-    (isCorrect: boolean) => {
-      const exerciseId = filteredExercises[currentEx]?.id;
-      if (!exerciseId) return;
+  const handleCompleteById = useCallback(
+    (exerciseId: string, isCorrect: boolean) => {
       const newAttempted = new Set(attempted);
       newAttempted.add(exerciseId);
       setAttempted(newAttempted);
@@ -97,7 +95,7 @@ export function ExercisesTab({ session }: ExercisesTabProps) {
         advanceToNext();
       }
     },
-    [currentEx, advanceToNext, attempted, filteredExercises]
+    [advanceToNext, attempted, filteredExercises]
   );
 
   const handleGenerateMore = async () => {
@@ -226,19 +224,29 @@ export function ExercisesTab({ session }: ExercisesTabProps) {
     return (
       <div className="max-w-2xl mx-auto py-8 space-y-8">
         {/* Score Card */}
-        <Card className="border-3 border-foreground shadow-[5px_5px_0px_0px_#1A1A1A]">
+        <Card className="border-2 border-foreground/15">
           <CardContent className="pt-8 pb-8 text-center">
-            <Trophy
-              size={48}
+            <div
               className={cn(
-                "mx-auto mb-4",
+                "mx-auto mb-4 w-20 h-20 flex items-center justify-center rounded-xl border-2",
                 scorePercent >= 80
-                  ? "text-accent-green"
+                  ? "bg-accent-green/15"
                   : scorePercent >= 60
-                    ? "text-accent-yellow"
-                    : "text-primary"
+                    ? "bg-accent-yellow/15"
+                    : "bg-primary/15"
               )}
-            />
+            >
+              <Trophy
+                size={40}
+                className={cn(
+                  scorePercent >= 80
+                    ? "text-accent-green"
+                    : scorePercent >= 60
+                      ? "text-accent-yellow"
+                      : "text-primary"
+                )}
+              />
+            </div>
             <p className="text-sm font-bold text-muted mb-2">Your Score</p>
             <p
               className={cn(
@@ -271,7 +279,7 @@ export function ExercisesTab({ session }: ExercisesTabProps) {
                 return (
                   <div key={tb.type} className="flex items-center gap-3">
                     <span className="text-sm font-bold w-32 shrink-0">{tb.label}</span>
-                    <div className="flex-1 h-6 bg-surface border-2 border-foreground/15 rounded-[4px] overflow-hidden">
+                    <div className="flex-1 h-6 bg-surface border-2 border-foreground/15 rounded-lg overflow-hidden">
                       <div
                         className={cn("h-full transition-all", tb.color)}
                         style={{ width: `${pct}%` }}
@@ -351,54 +359,71 @@ export function ExercisesTab({ session }: ExercisesTabProps) {
 
   const config = typeConfig[exercise.type] || typeConfig.code_explanation;
 
-  const renderExercise = () => {
-    switch (exercise.type) {
+  const renderExerciseComponent = (ex: Exercise) => {
+    const onComplete = (isCorrect: boolean) => handleCompleteById(ex.id, isCorrect);
+    switch (ex.type) {
       case "mcq":
       case "output_prediction":
-        return <MCQExercise key={exercise.id} exercise={exercise} onComplete={handleComplete} />;
+        return <MCQExercise exercise={ex} onComplete={onComplete} />;
       case "code_recreation":
-        return (
-          <FillBlankExercise key={exercise.id} exercise={exercise} onComplete={handleComplete} />
-        );
+        return <FillBlankExercise exercise={ex} onComplete={onComplete} />;
       case "parsons":
-        return (
-          <ParsonsExercise key={exercise.id} exercise={exercise} onComplete={handleComplete} />
-        );
+        return <ParsonsExercise exercise={ex} onComplete={onComplete} />;
       case "error_message":
-        return (
-          <ErrorMessageExercise
-            key={exercise.id}
-            exercise={exercise}
-            onComplete={handleComplete}
-          />
-        );
+        return <ErrorMessageExercise exercise={ex} onComplete={onComplete} />;
       default:
-        return <TextExercise key={exercise.id} exercise={exercise} onComplete={handleComplete} />;
+        return <TextExercise exercise={ex} onComplete={onComplete} />;
     }
   };
 
   return (
     <div className="max-w-4xl mx-auto">
       {/* Type Filter Tabs */}
-      <div className="mb-6 flex flex-wrap gap-2">
-        {EXERCISE_TYPES.map((type) => (
+      <div className="mb-4 flex flex-wrap gap-2">
+        {EXERCISE_TYPES.map((type) => {
+          const cfg = type !== "all" ? typeConfig[type as keyof typeof typeConfig] : null;
+          const FilterIcon = cfg?.icon;
+          return (
+            <button
+              key={type}
+              onClick={() => {
+                setActiveFilter(type);
+                setCurrentEx(0);
+              }}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm border-2 transition-all duration-200 cursor-pointer",
+                activeFilter === type
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-foreground/15 bg-surface text-muted hover:border-foreground/30"
+              )}
+            >
+              {FilterIcon && <FilterIcon size={13} />}
+              {type === "all"
+                ? "All"
+                : cfg?.label || type}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Progress Dots */}
+      <div className="mb-6 flex items-center gap-1.5 flex-wrap">
+        {filteredExercises.map((ex, i) => (
           <button
-            key={type}
-            onClick={() => {
-              setActiveFilter(type);
-              setCurrentEx(0);
-            }}
+            key={ex.id}
+            onClick={() => setCurrentEx(i)}
             className={cn(
-              "px-3 py-1.5 rounded-[4px] font-bold text-sm border-2 transition-all",
-              activeFilter === type
-                ? "border-foreground bg-accent-yellow text-foreground"
-                : "border-foreground/20 bg-surface text-muted hover:border-foreground/40"
+              "w-3 h-3 rounded-full border-2 transition-all duration-200 cursor-pointer",
+              i === currentEx
+                ? "border-foreground bg-secondary scale-125"
+                : completed.has(ex.id)
+                  ? "border-accent-green bg-accent-green"
+                  : attempted.has(ex.id)
+                    ? "border-primary bg-primary/40"
+                    : "border-foreground/30 bg-surface hover:border-foreground/50"
             )}
-          >
-            {type === "all"
-              ? "All"
-              : typeConfig[type as keyof typeof typeConfig]?.label || type}
-          </button>
+            title={`Exercise ${i + 1}${completed.has(ex.id) ? " (correct)" : attempted.has(ex.id) ? " (attempted)" : ""}`}
+          />
         ))}
       </div>
 
@@ -431,8 +456,12 @@ export function ExercisesTab({ session }: ExercisesTabProps) {
         </div>
       </div>
 
-      {/* Exercise Component */}
-      {renderExercise()}
+      {/* Exercise Components — all mounted, only current visible */}
+      {filteredExercises.map((ex, index) => (
+        <div key={ex.id} style={{ display: index === currentEx ? undefined : "none" }}>
+          {renderExerciseComponent(ex)}
+        </div>
+      ))}
 
       {/* Navigation */}
       <div className="mt-8 flex items-center justify-between">
@@ -488,10 +517,10 @@ function DifficultySelector({
           key={d}
           onClick={() => onDifficultyChange(d)}
           className={cn(
-            "px-3 py-1.5 rounded-[4px] font-bold text-sm border-2 transition-all capitalize",
+            "px-3 py-1.5 rounded-xl font-bold text-sm border-2 transition-all duration-200 capitalize cursor-pointer",
             difficulty === d
-              ? "border-foreground bg-secondary text-white"
-              : "border-foreground/20 bg-surface text-muted hover:border-foreground/40"
+              ? "border-secondary bg-secondary/10 text-secondary"
+              : "border-foreground/15 bg-surface text-muted hover:border-foreground/30"
           )}
         >
           {d}
