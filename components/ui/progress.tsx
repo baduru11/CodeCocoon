@@ -9,18 +9,23 @@ interface ProgressProps {
 
 function Progress({ value, label, color = "bg-accent-green", className }: ProgressProps) {
   const clampedValue = Math.min(100, Math.max(0, value));
+  const isActive = clampedValue > 0 && clampedValue < 100;
 
   return (
     <div className={cn("w-full", className)}>
       {label && (
-        <div className="flex justify-between items-center mb-1.5">
+        <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-bold">{label}</span>
-          <span className="text-sm font-bold">{Math.round(clampedValue)}%</span>
+          <span className="text-sm font-bold tabular-nums text-muted">{Math.round(clampedValue)}%</span>
         </div>
       )}
-      <div className="w-full h-6 bg-surface border-3 border-foreground rounded-[4px] shadow-[3px_3px_0px_0px_#1A1A1A] overflow-hidden">
+      <div className="w-full h-3 bg-foreground/5 border border-foreground/10 rounded-full overflow-hidden">
         <div
-          className={cn("h-full transition-all duration-500 ease-out", color)}
+          className={cn(
+            "h-full transition-all duration-500 ease-out rounded-full",
+            color,
+            isActive && "progress-stripes"
+          )}
           style={{ width: `${clampedValue}%` }}
         />
       </div>

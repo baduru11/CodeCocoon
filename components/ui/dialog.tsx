@@ -37,13 +37,13 @@ function Dialog({ open, onClose, title, children, className }: DialogProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-foreground/40"
+        className="absolute inset-0 bg-foreground/30 backdrop-blur-sm transition-all duration-200"
         onClick={onClose}
       />
       {/* Dialog */}
       <div
         className={cn(
-          "relative z-10 w-full max-w-lg mx-4 bg-surface border-3 border-foreground rounded-[4px] shadow-[8px_8px_0px_0px_#1A1A1A]",
+          "relative z-10 w-full max-w-lg mx-4 bg-surface border-2 border-foreground rounded-xl shadow-[6px_6px_0px_0px_#1E293B]",
           "animate-slide-up",
           className
         )}
@@ -54,7 +54,8 @@ function Dialog({ open, onClose, title, children, className }: DialogProps) {
             <h2 className="text-xl font-bold">{title}</h2>
             <button
               onClick={onClose}
-              className="p-1 border-2 border-foreground rounded-[4px] hover:bg-muted/20 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-foreground/5 transition-colors cursor-pointer"
+              aria-label="Close dialog"
             >
               <X size={18} />
             </button>
@@ -63,7 +64,8 @@ function Dialog({ open, onClose, title, children, className }: DialogProps) {
         {!title && (
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-1 border-2 border-foreground rounded-[4px] hover:bg-muted/20 transition-colors"
+            className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-foreground/5 transition-colors cursor-pointer"
+            aria-label="Close dialog"
           >
             <X size={18} />
           </button>

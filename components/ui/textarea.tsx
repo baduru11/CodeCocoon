@@ -22,13 +22,12 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           id={inputId}
           ref={ref}
           className={cn(
-            "w-full px-4 py-2.5 bg-surface border-3 border-foreground rounded-[4px] font-medium min-h-[120px] resize-y",
-            "shadow-[3px_3px_0px_0px_#1A1A1A]",
-            "focus:shadow-[5px_5px_0px_0px_#1A1A1A] focus:outline-none",
-            "transition-shadow",
-            "placeholder:text-muted/60",
+            "w-full px-4 py-2.5 bg-surface border-2 border-foreground/20 rounded-lg font-medium min-h-[120px] resize-y",
+            "focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/20",
+            "transition-all duration-200",
+            "placeholder:text-muted/50",
             "disabled:opacity-50 disabled:cursor-not-allowed",
-            error && "border-red-500",
+            error && "border-red-500 focus:border-red-500",
             className
           )}
           {...props}

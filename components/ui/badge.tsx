@@ -1,22 +1,22 @@
 import { cn } from "@/lib/utils";
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: "default" | "primary" | "secondary" | "success" | "warning" | "danger";
+  variant?: "default" | "primary" | "secondary" | "success" | "warning" | "danger" | "outline";
 }
 
 function Badge({ className, variant = "default", ...props }: BadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center px-2.5 py-0.5 text-xs font-bold border-2 border-foreground rounded-[4px]",
-        "shadow-[2px_2px_0px_0px_#1A1A1A]",
+        "inline-flex items-center px-2.5 py-0.5 text-xs font-bold border rounded-md",
         {
-          "bg-surface text-foreground": variant === "default",
-          "bg-primary text-white": variant === "primary",
-          "bg-secondary text-white": variant === "secondary",
-          "bg-accent-green text-foreground": variant === "success",
-          "bg-accent-yellow text-foreground": variant === "warning",
-          "bg-red-500 text-white": variant === "danger",
+          "bg-foreground/5 text-foreground border-foreground/20": variant === "default",
+          "bg-primary/10 text-primary border-primary/30": variant === "primary",
+          "bg-secondary/10 text-secondary border-secondary/30": variant === "secondary",
+          "bg-accent-green/10 text-accent-green border-accent-green/30": variant === "success",
+          "bg-accent-yellow/10 text-accent-yellow border-accent-yellow/30": variant === "warning",
+          "bg-red-500/10 text-red-500 border-red-500/30": variant === "danger",
+          "bg-transparent text-foreground border-foreground/20": variant === "outline",
         },
         className
       )}
