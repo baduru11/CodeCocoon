@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useProjectSessions } from "@/hooks/use-project-sessions";
+import { useAuth } from "@/hooks/use-auth";
 
 import { useScrollspy } from "@/hooks/use-scrollspy";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,8 @@ import {
   LayoutGrid,
   FileCode,
   Link2,
+  Save,
+  CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
 import { SectionTabs } from "@/components/results/section-tabs";
@@ -24,6 +27,13 @@ import { ExercisesTab } from "@/components/results/exercises-tab";
 import { TutorialOverview } from "@/components/results/tutorial-overview";
 import { TutorialChapter } from "@/components/results/tutorial-chapter";
 import type { TabId } from "@/components/results/section-tabs";
+
+function extractOwnerRepo(repoUrl: string) {
+  const urlParts = repoUrl.replace(/\/$/, "").split("/");
+  const githubRepo = urlParts.pop() || "";
+  const githubOwner = urlParts.pop() || "";
+  return { githubOwner, githubRepo };
+}
 
 const TUTORIAL_SECTION_IDS = ["overview", "architecture", "tech-stack", "key-files"];
 const TUTORIAL_SECTION_LABELS: Record<string, { label: string; icon: typeof BookOpen }> = {
@@ -35,11 +45,15 @@ const TUTORIAL_SECTION_LABELS: Record<string, { label: string; icon: typeof Book
 
 export default function ResultsPage() {
   const { activeSession, isLoaded } = useProjectSessions();
+  const { isAuthenticated } = useAuth();
   const activeId = useScrollspy(TUTORIAL_SECTION_IDS);
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<TabId>("summary");
   const [selectedChapter, setSelectedChapter] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Redirect to history if no active session
   useEffect(() => {
@@ -47,6 +61,62 @@ export default function ResultsPage() {
       router.replace("/history");
     }
   }, [isLoaded, activeSession, router]);
+
+  // Check if this project is already saved to dashboard
+  useEffect(() => {
+    if (!isAuthenticated || !activeSession) return;
+
+    const { githubOwner, githubRepo } = extractOwnerRepo(activeSession.repoUrl);
+    if (!githubOwner || !githubRepo) return;
+
+    fetch("/api/projects/check-duplicate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ githubOwner, githubRepo }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.exists) setSaved(true);
+      })
+      .catch((err) => console.warn("Failed to check duplicate status:", err));
+  }, [isAuthenticated, activeSession]);
+
+  const handleSave = async () => {
+    if (!activeSession || saving || saved) return;
+    setSaving(true);
+    setSaveError(null);
+
+    const { githubOwner, githubRepo } = extractOwnerRepo(activeSession.repoUrl);
+
+    try {
+      const res = await fetch("/api/projects/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          repoName: activeSession.repoName,
+          githubOwner,
+          githubRepo,
+          githubUrl: activeSession.repoUrl,
+          files: activeSession.projectData.files,
+          analysis: activeSession.analysisData,
+          learningPath: activeSession.learningPath,
+          exercises: activeSession.exercises,
+          skillLevel: activeSession.skillLevel,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to save");
+      }
+
+      setSaved(true);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Loading or no session — show spinner (useEffect handles redirect)
   if (!isLoaded || !activeSession) {
@@ -64,11 +134,41 @@ export default function ResultsPage() {
     <div className="max-w-[90%] mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">{activeSession.repoName}</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-3xl font-bold">{activeSession.repoName}</h1>
+          {isAuthenticated && (
+            <Button
+              onClick={handleSave}
+              disabled={saving || saved}
+              variant="secondary"
+              size="sm"
+            >
+              {saving ? (
+                <>
+                  <Loader2 size={14} className="animate-spin mr-1.5" />
+                  Saving...
+                </>
+              ) : saved ? (
+                <>
+                  <CheckCircle2 size={14} className="mr-1.5" />
+                  Saved
+                </>
+              ) : (
+                <>
+                  <Save size={14} className="mr-1.5" />
+                  Save to Dashboard
+                </>
+              )}
+            </Button>
+          )}
+        </div>
         <p className="text-muted font-medium text-sm mt-1">
           {activeSession.projectData.fileCount} files analyzed ·{" "}
           {new Date(activeSession.analyzedAt).toLocaleDateString()}
         </p>
+        {saveError && (
+          <p className="text-red-500 text-sm mt-1">{saveError}</p>
+        )}
       </div>
 
       {/* Tab Bar */}
