@@ -14,11 +14,12 @@ import {
   FileCode,
   GitBranch,
   ExternalLink,
+  Star,
 } from "lucide-react";
 import Link from "next/link";
 
 export default function HistoryPage() {
-  const { sessions, removeSession, setActiveSession, isLoaded } =
+  const { sessions, removeSession, setActiveSession, favorites, toggleFavorite, isLoaded } =
     useProjectSessions();
   const router = useRouter();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -60,7 +61,7 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">History</h1>
         <p className="text-muted font-medium text-sm mt-1">
@@ -69,9 +70,14 @@ export default function HistoryPage() {
         </p>
       </div>
 
-      <div className="space-y-4">
-        {sessions.map((session) => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[...sessions].sort((a, b) => {
+          const aFav = favorites.has(a.id) ? 1 : 0;
+          const bFav = favorites.has(b.id) ? 1 : 0;
+          return bFav - aFav;
+        }).map((session) => {
           const isConfirming = confirmDeleteId === session.id;
+          const isFavorite = favorites.has(session.id);
           const date = new Date(session.analyzedAt);
 
           return (
@@ -79,57 +85,65 @@ export default function HistoryPage() {
               key={session.id}
               className={cn(
                 "bg-surface border-2 border-foreground rounded-lg shadow-[4px_4px_0px_0px_#1E293B]",
-                "transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[3px_3px_0px_0px_#1E293B]"
+                "transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[3px_3px_0px_0px_#1E293B]",
+                "flex flex-col"
               )}
             >
-              <div className="flex items-center justify-between p-5">
-                {/* Left: repo info — clickable */}
+              <div className="flex items-start p-5 pb-3">
                 <button
                   onClick={() => handleOpenProject(session.id)}
                   className="flex-1 text-left min-w-0"
                 >
-                  <div className="flex items-center gap-2 mb-1.5">
+                  <div className="flex items-center gap-2 mb-2">
                     <GitBranch size={16} className="shrink-0 text-secondary" />
                     <h2 className="text-lg font-bold truncate">
                       {session.repoName}
                     </h2>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted font-medium">
-                    <span className="flex items-center gap-1">
-                      <Calendar size={12} />
-                      {date.toLocaleDateString()}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted font-medium">
+                  <span className="flex items-center gap-1">
+                    <Calendar size={12} />
+                    {date.toLocaleDateString()}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <FileCode size={12} />
+                    {session.projectData.fileCount} files
+                  </span>
+                  {session.skillLevel && (
+                    <span className="px-2 py-0.5 bg-accent-yellow/20 border border-accent-yellow/40 rounded-[2px] font-bold">
+                      {session.skillLevel}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <FileCode size={12} />
-                      {session.projectData.fileCount} files
-                    </span>
-                    {session.skillLevel && (
-                      <span className="px-2 py-0.5 bg-accent-yellow/20 border border-accent-yellow/40 rounded-[2px] font-bold">
-                        {session.skillLevel}
-                      </span>
-                    )}
-                    {session.exercises.length > 0 && (
-                      <span className="px-2 py-0.5 bg-accent-green/20 border border-accent-green/40 rounded-[2px] font-bold">
-                        {session.exercises.length} exercises
-                      </span>
-                    )}
-                  </div>
-                </button>
-
-                {/* Right: actions */}
-                <div className="flex items-center gap-2 ml-4 shrink-0">
-                  {session.repoUrl && (
-                    <a
-                      href={session.repoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 border-2 border-foreground/20 rounded-lg text-muted hover:text-foreground hover:border-foreground transition-colors"
-                      title="Open on GitHub"
-                    >
-                      <ExternalLink size={16} />
-                    </a>
                   )}
+                </div>
+              </button>
+                <button
+                  onClick={() => toggleFavorite(session.id)}
+                  className={cn(
+                    "p-1.5 rounded-lg shrink-0 ml-2 transition-colors",
+                    isFavorite
+                      ? "text-amber-500"
+                      : "text-foreground/20 hover:text-amber-500"
+                  )}
+                  title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+                >
+                  <Star size={18} fill={isFavorite ? "currentColor" : "none"} />
+                </button>
+              </div>
 
+              <div className="flex items-center gap-2 px-5 pb-4 pt-1">
+                {session.repoUrl && (
+                  <a
+                    href={session.repoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 border-2 border-foreground/20 rounded-lg text-muted hover:text-foreground hover:border-foreground transition-colors"
+                    title="Open on GitHub"
+                  >
+                    <ExternalLink size={16} />
+                  </a>
+                )}
+
+                <div className="ml-auto">
                   {isConfirming ? (
                     <div className="flex items-center gap-1.5">
                       <button

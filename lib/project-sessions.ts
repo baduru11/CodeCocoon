@@ -3,6 +3,7 @@ import type { Exercise } from "@/types/exercise";
 
 const SESSIONS_KEY = "projectSessions";
 const ACTIVE_KEY = "activeSessionId";
+const FAVORITES_KEY = "favoriteSessionIds";
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
@@ -93,4 +94,28 @@ export function updateSessionExercises(
   if (!session) return;
   session.exercises = exercises;
   saveSession(session);
+}
+
+export function getFavoriteIds(): Set<string> {
+  if (!isBrowser()) return new Set();
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+export function toggleFavorite(id: string): Set<string> {
+  const favs = getFavoriteIds();
+  if (favs.has(id)) {
+    favs.delete(id);
+  } else {
+    favs.add(id);
+  }
+  if (isBrowser()) {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favs]));
+  }
+  return favs;
 }

@@ -8,17 +8,21 @@ import {
   setActiveSessionId as setActiveId,
   getSession,
   deleteSession as removeSessionFromStorage,
+  getFavoriteIds,
+  toggleFavorite as toggleFav,
 } from "@/lib/project-sessions";
 
 export function useProjectSessions() {
   const [sessions, setSessions] = useState<ProjectSession[]>([]);
   const [activeSessionId, setActiveSessionIdState] = useState<string | null>(null);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Hydrate from localStorage on mount
   useEffect(() => {
     setSessions(getAllSessions());
     setActiveSessionIdState(getActiveSessionId());
+    setFavorites(getFavoriteIds());
     setIsLoaded(true);
   }, []);
 
@@ -44,9 +48,15 @@ export function useProjectSessions() {
     }
   }, [activeSessionId]);
 
+  const toggleFavorite = useCallback((id: string) => {
+    const updated = toggleFav(id);
+    setFavorites(new Set(updated));
+  }, []);
+
   const refresh = useCallback(() => {
     setSessions(getAllSessions());
     setActiveSessionIdState(getActiveSessionId());
+    setFavorites(getFavoriteIds());
   }, []);
 
   return {
@@ -55,6 +65,8 @@ export function useProjectSessions() {
     activeSessionId,
     setActiveSession,
     removeSession,
+    favorites,
+    toggleFavorite,
     isLoaded,
     refresh,
   };
