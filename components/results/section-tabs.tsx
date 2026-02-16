@@ -12,7 +12,7 @@ interface SectionTabsProps {
 }
 
 const TABS: { id: TabId; label: string; icon: typeof BookOpen }[] = [
-  { id: "summary", label: "Summary", icon: BookOpen },
+  { id: "summary", label: "Tutorial", icon: BookOpen },
   { id: "learn", label: "Learning Path", icon: GraduationCap },
   { id: "exercises", label: "Exercises", icon: Dumbbell },
 ];
