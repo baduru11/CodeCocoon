@@ -3,7 +3,7 @@ import type { AIProvider, GenerateOptions, GenerateResult, StreamChunk } from ".
 import { GEMINI_MODELS } from "@/lib/constants";
 
 const MAX_RETRIES = 3;
-const BASE_DELAY_MS = 2000;
+const BASE_DELAY_MS = 5000;
 
 function isRetryable(error: unknown): boolean {
   if (error instanceof Error) {
@@ -35,6 +35,76 @@ function isRetryable(error: unknown): boolean {
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// ─── Per-model rate limiter ──────────────────────────────────────────
+
+class RequestQueue {
+  private maxConcurrent: number;
+  private minGapMs: number;
+  private inFlight = 0;
+  private lastStartTime = 0;
+  private waiters: (() => void)[] = [];
+
+  constructor(maxConcurrent: number, minGapMs: number) {
+    this.maxConcurrent = maxConcurrent;
+    this.minGapMs = minGapMs;
+  }
+
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    await this.acquire();
+    try {
+      return await fn();
+    } finally {
+      this.release();
+    }
+  }
+
+  private async acquire(): Promise<void> {
+    // Wait for a free slot if at capacity
+    while (this.inFlight >= this.maxConcurrent) {
+      await new Promise<void>((resolve) => {
+        this.waiters.push(resolve);
+      });
+    }
+    // Claim slot synchronously (no await between check and increment)
+    this.inFlight++;
+    // Enforce minimum gap between consecutive request starts
+    const now = Date.now();
+    const elapsed = now - this.lastStartTime;
+    if (elapsed < this.minGapMs) {
+      await sleep(this.minGapMs - elapsed);
+    }
+    this.lastStartTime = Date.now();
+  }
+
+  private release(): void {
+    this.inFlight--;
+    if (this.waiters.length > 0) {
+      const next = this.waiters.shift()!;
+      next();
+    }
+  }
+}
+
+class GeminiThrottle {
+  private queues = new Map<string, RequestQueue>();
+
+  constructor() {
+    // gemini-2.0-flash: 15 RPM limit → ~13 effective RPM
+    this.queues.set(GEMINI_MODELS.fast, new RequestQueue(2, 4500));
+    // gemini-2.5-flash: 10 RPM limit → ~9 effective RPM
+    this.queues.set(GEMINI_MODELS.deep, new RequestQueue(2, 6500));
+  }
+
+  run<T>(model: string, fn: () => Promise<T>): Promise<T> {
+    const queue = this.queues.get(model);
+    if (!queue) return fn();
+    return queue.run(fn);
+  }
+}
+
+/** Module-level singleton — shared across all GeminiProvider instances */
+const throttle = new GeminiThrottle();
 
 export class GeminiProvider implements AIProvider {
   name = "gemini";
@@ -74,11 +144,9 @@ export class GeminiProvider implements AIProvider {
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const response = await this.client.models.generateContent({
-          model,
-          contents,
-          config,
-        });
+        const response = await throttle.run(model, () =>
+          this.client.models.generateContent({ model, contents, config })
+        );
 
         return {
           content: response.text || "",
@@ -89,8 +157,10 @@ export class GeminiProvider implements AIProvider {
         };
       } catch (error) {
         if (attempt < MAX_RETRIES && isRetryable(error)) {
-          const delay = BASE_DELAY_MS * Math.pow(2, attempt);
-          console.warn(`Gemini API rate limited (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`);
+          const baseDelay = BASE_DELAY_MS * Math.pow(2, attempt);
+          const jitter = baseDelay * (0.5 + Math.random());
+          const delay = Math.round(jitter);
+          console.warn(`Gemini API error (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`);
           await sleep(delay);
           continue;
         }
@@ -109,11 +179,10 @@ export class GeminiProvider implements AIProvider {
     let lastError: unknown = new Error("All retry attempts exhausted");
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const stream = await this.client.models.generateContentStream({
-          model,
-          contents,
-          config,
-        });
+        // Throttle only the initial API call; stream iteration happens outside the slot
+        const stream = await throttle.run(model, () =>
+          this.client.models.generateContentStream({ model, contents, config })
+        );
 
         for await (const chunk of stream) {
           yield {
@@ -127,8 +196,10 @@ export class GeminiProvider implements AIProvider {
       } catch (error) {
         lastError = error;
         if (attempt < MAX_RETRIES && isRetryable(error)) {
-          const delay = BASE_DELAY_MS * Math.pow(2, attempt);
-          console.warn(`Gemini stream rate limited (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`);
+          const baseDelay = BASE_DELAY_MS * Math.pow(2, attempt);
+          const jitter = baseDelay * (0.5 + Math.random());
+          const delay = Math.round(jitter);
+          console.warn(`Gemini stream error (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`);
           await sleep(delay);
           continue;
         }
