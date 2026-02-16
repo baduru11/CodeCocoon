@@ -43,7 +43,7 @@ export function AuthButton() {
 
   if (loading) {
     return (
-      <div className="h-9 w-24 bg-muted/20 border-2 border-foreground/30 rounded-[4px] animate-pulse" />
+      <div className="h-9 w-40 bg-foreground/5 rounded-lg animate-pulse" />
     );
   }
 
@@ -52,15 +52,16 @@ export function AuthButton() {
       <div className="flex items-center gap-2">
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 px-3 py-1.5 text-sm font-bold border-2 border-foreground rounded-[4px] shadow-[3px_3px_0px_0px_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all bg-surface"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-bold border-2 border-foreground rounded-lg shadow-[2px_2px_0px_0px_#1E293B] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all bg-surface cursor-pointer"
         >
           <LayoutDashboard size={14} />
           Dashboard
         </Link>
         <button
           onClick={handleLogout}
-          className="p-1.5 border-2 border-foreground rounded-[4px] hover:bg-red-100 transition-colors"
+          className="p-1.5 border border-foreground/20 rounded-lg hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-colors cursor-pointer"
           title="Sign out"
+          aria-label="Sign out"
         >
           <LogOut size={14} />
         </button>
@@ -71,7 +72,7 @@ export function AuthButton() {
   return (
     <button
       onClick={handleLogin}
-      className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-foreground text-surface border-3 border-foreground rounded-[4px] shadow-[3px_3px_0px_0px_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+      className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-foreground text-surface border-2 border-foreground rounded-lg shadow-[2px_2px_0px_0px_#1E293B] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all cursor-pointer"
     >
       <Github size={16} />
       Login with GitHub
