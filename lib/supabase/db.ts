@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RepoFile } from "@/types/github";
 import type { AnalysisResult } from "@/types/analysis";
-import type { LearningPath } from "@/types/learning";
+import type { LearningPath, LearningPathV1, LearningPathV2 } from "@/types/learning";
+import { isV2LearningPath } from "@/types/learning";
 import type { Exercise } from "@/types/exercise";
 import type { Project } from "@/types/database";
 
@@ -113,6 +114,7 @@ export async function saveAnalysisResult(
 
 /**
  * Save a learning path with modules as JSONB.
+ * Handles both V1 (flat modules) and V2 (skill graph) formats.
  */
 export async function saveLearningPath(
   supabase: SupabaseClient,
@@ -120,16 +122,39 @@ export async function saveLearningPath(
   skillLevel: string,
   path: LearningPath
 ): Promise<void> {
-  const { error } = await supabase.from("learning_paths").insert({
-    project_id: projectId,
-    title: path.title,
-    description: path.description,
-    skill_level: skillLevel,
-    modules: path.modules,
-  });
+  if (isV2LearningPath(path)) {
+    const { error } = await supabase.from("learning_paths").insert({
+      project_id: projectId,
+      title: `${path.role.displayName} Learning Path`,
+      description: path.gapAnalysis.summary,
+      skill_level: skillLevel,
+      modules: [], // V2 uses skill_graph instead
+      version: 2,
+      role: path.role,
+      skill_graph: {
+        modules: path.modules,
+        nodes: path.nodes,
+        edges: path.edges,
+      },
+      gap_analysis: path.gapAnalysis,
+    });
 
-  if (error) {
-    throw new Error(`Failed to save learning path: ${error.message}`);
+    if (error) {
+      throw new Error(`Failed to save learning path: ${error.message}`);
+    }
+  } else {
+    const { error } = await supabase.from("learning_paths").insert({
+      project_id: projectId,
+      title: path.title,
+      description: path.description,
+      skill_level: skillLevel,
+      modules: path.modules,
+      version: 1,
+    });
+
+    if (error) {
+      throw new Error(`Failed to save learning path: ${error.message}`);
+    }
   }
 }
 
@@ -304,7 +329,32 @@ export async function getProjectWithAllData(
     analysis: analysisResult.data ? dbRowToAnalysis(analysisResult.data as Record<string, unknown>) : null,
     learningPaths: (pathsResult.data ?? []).map((row) => {
       const r = row as Record<string, unknown>;
-      const modules = (r.modules as LearningPath["modules"]) ?? [];
+      const version = Number(r.version ?? 1);
+
+      if (version === 2 && r.skill_graph && r.role) {
+        const skillGraph = r.skill_graph as {
+          modules: LearningPathV2["modules"];
+          nodes: LearningPathV2["nodes"];
+          edges: LearningPathV2["edges"];
+        };
+        const nodes = skillGraph.nodes ?? [];
+        return {
+          id: String(r.id ?? ""),
+          projectId: String(r.project_id ?? projectId),
+          role: r.role as LearningPathV2["role"],
+          skillLevel: String(r.skill_level ?? ""),
+          gapAnalysis: (r.gap_analysis as LearningPathV2["gapAnalysis"]) ?? { likelyKnown: [], focusAreas: [], summary: "" },
+          modules: skillGraph.modules ?? [],
+          nodes,
+          edges: skillGraph.edges ?? [],
+          totalConcepts: nodes.length,
+          completedConcepts: nodes.filter((n) => n.status === "completed").length,
+          estimatedTotalMinutes: nodes.reduce((sum, n) => sum + (n.estimatedMinutes || 0), 0),
+        } as LearningPathV2;
+      }
+
+      // V1 fallback
+      const modules = (r.modules as LearningPathV1["modules"]) ?? [];
       const totalLessons = modules.reduce((sum, m) => sum + (m.lessons?.length ?? 0), 0);
       return {
         id: String(r.id ?? ""),
@@ -315,7 +365,7 @@ export async function getProjectWithAllData(
         modules,
         totalLessons,
         completedLessons: 0,
-      };
+      } as LearningPathV1;
     }),
     exercises: (exercisesResult.data ?? []).map((row) => dbRowToExercise(row as Record<string, unknown>)),
   };

@@ -92,7 +92,7 @@ export const FILE_SIZE_WARNING_BYTES = 50_000; // 50KB - files above this are hi
 
 // Gemini model names
 export const GEMINI_MODELS = {
-  fast: "gemini-2.0-flash",
+  fast: "gemini-2.5-flash-lite",
   deep: "gemini-2.5-flash",
 } as const;
 
@@ -149,6 +149,9 @@ export const PROCESSING_STEPS = [
   { key: "tutorial_relationships", label: "Mapping relationships" },
   { key: "tutorial_order", label: "Planning chapter order" },
   { key: "tutorial_chapters", label: "Writing tutorial chapters" },
-  { key: "learning_path", label: "Generating learning path" },
+  { key: "learning_concepts", label: "Extracting role-based concepts" },
+  { key: "learning_graph", label: "Building skill dependency graph" },
+  { key: "learning_lessons", label: "Generating lesson content" },
+  { key: "learning_resources", label: "Curating learning resources" },
   { key: "exercises", label: "Creating exercises" },
 ] as const;

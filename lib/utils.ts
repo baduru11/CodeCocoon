@@ -63,3 +63,28 @@ export function bytesToSize(bytes: number): string {
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return Math.round(bytes / Math.pow(1024, i)) + " " + sizes[i];
 }
+
+/**
+ * Normalize code strings that may be double-escaped from JSON serialization.
+ * When Gemini returns code inside JSON, escape sequences like \n and \t
+ * sometimes come through as literal two-character strings instead of
+ * actual newlines/tabs. This detects and fixes that.
+ */
+export function normalizeCode(code: string): string {
+  if (!code) return "";
+
+  // Count real newlines vs literal \n sequences (two chars: backslash + n)
+  const realNewlines = (code.match(/\n/g) || []).length;
+  const literalNewlines = (code.match(/\\n/g) || []).length;
+
+  // If there are literal \n but few/no real newlines, the string is double-escaped
+  if (literalNewlines > 0 && realNewlines <= 1) {
+    return code
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\");
+  }
+
+  return code;
+}
