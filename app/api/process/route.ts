@@ -6,48 +6,99 @@ import { getLanguageStats } from "@/lib/github/filter";
 import { isValidGitHubName } from "@/lib/github/parser";
 import { createClient } from "@/lib/supabase/server";
 import { runTutorialPipeline } from "@/lib/ai/tutorial-pipeline";
+import { runLearningPipeline } from "@/lib/ai/learning-pipeline";
+import { ROLE_PRESETS } from "@/types/learning";
+import type { RoleProfile, RolePreset } from "@/types/learning";
 import type { RepoFile } from "@/types/github";
+import type { TechStack } from "@/types/analysis";
 
 interface ProcessRequest {
   owner: string;
   repo: string;
   selectedFiles: { path: string; sha: string; size: number }[];
   skillLevel: string;
+  role?: {
+    preset: string | null;
+    custom: string | null;
+  };
+  /** Pre-fetched file contents from local upload (skips GitHub fetch). */
+  uploadedFiles?: RepoFile[];
+}
+
+function resolveRole(input?: ProcessRequest["role"]): RoleProfile {
+  if (!input) {
+    return {
+      preset: "fullstack_dev",
+      custom: null,
+      displayName: ROLE_PRESETS.fullstack_dev.label,
+    };
+  }
+
+  if (input.preset && input.preset in ROLE_PRESETS) {
+    const preset = input.preset as RolePreset;
+    return {
+      preset,
+      custom: null,
+      displayName: ROLE_PRESETS[preset].label,
+    };
+  }
+
+  if (input.custom) {
+    return {
+      preset: null,
+      custom: input.custom,
+      displayName: input.custom,
+    };
+  }
+
+  return {
+    preset: "fullstack_dev",
+    custom: null,
+    displayName: ROLE_PRESETS.fullstack_dev.label,
+  };
 }
 
 export async function POST(request: Request) {
   try {
-    const { owner, repo, selectedFiles, skillLevel } =
+    const { owner, repo, selectedFiles, skillLevel, role: roleInput, uploadedFiles } =
       (await request.json()) as ProcessRequest;
 
-    if (!owner || !repo || !selectedFiles?.length) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields: owner, repo, selectedFiles" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const isUpload = !!uploadedFiles?.length;
 
-    if (!isValidGitHubName(owner) || !isValidGitHubName(repo)) {
-      return new Response(
-        JSON.stringify({ error: "Invalid owner or repo name" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    // Get auth token from Supabase session
-    let token: string | undefined;
-    try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      if (supabaseUrl && supabaseKey && !supabaseUrl.includes("placeholder")) {
-        const supabase = await createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.provider_token && session.provider_token.trim()) {
-          token = session.provider_token;
-        }
+    if (!isUpload) {
+      if (!owner || !repo || !selectedFiles?.length) {
+        return new Response(
+          JSON.stringify({ error: "Missing required fields: owner, repo, selectedFiles" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
       }
-    } catch {
-      // Anonymous access — fetcher.ts will use unauthenticated Octokit
+
+      if (!isValidGitHubName(owner) || !isValidGitHubName(repo)) {
+        return new Response(
+          JSON.stringify({ error: "Invalid owner or repo name" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    const role = resolveRole(roleInput);
+
+    // Get auth token from Supabase session (only needed for GitHub fetch)
+    let token: string | undefined;
+    if (!isUpload) {
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (supabaseUrl && supabaseKey && !supabaseUrl.includes("placeholder")) {
+          const supabase = await createClient();
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.provider_token && session.provider_token.trim()) {
+            token = session.provider_token;
+          }
+        }
+      } catch {
+        // Anonymous access — fetcher.ts will use unauthenticated Octokit
+      }
     }
 
     const ai = new GeminiProvider();
@@ -67,20 +118,31 @@ export async function POST(request: Request) {
         };
 
         try {
-          // Step 1: Fetch file contents
-          send("status", "Fetching file contents...");
+          // Step 1: Fetch file contents (or use uploaded files)
+          send("status", isUpload ? "Preparing uploaded files..." : "Fetching file contents...");
           send("step_start", "files_fetched");
 
-          const files: RepoFile[] = await fetchContentForFiles(
-            owner,
-            repo,
-            selectedFiles,
-            { token }
-          );
+          let files: RepoFile[];
 
+          if (isUpload && uploadedFiles) {
+            // Upload mode: use pre-fetched files, filter to selected paths
+            const selectedPaths = new Set(selectedFiles.map((f) => f.path));
+            files = selectedPaths.size > 0
+              ? uploadedFiles.filter((f) => selectedPaths.has(f.path))
+              : uploadedFiles;
+          } else {
+            files = await fetchContentForFiles(
+              owner,
+              repo,
+              selectedFiles,
+              { token }
+            );
+          }
+
+          const repoName = isUpload ? (repo || "Uploaded Project") : `${owner}/${repo}`;
           const projectData = {
             files,
-            repoName: `${owner}/${repo}`,
+            repoName,
             fileCount: files.length,
             languages: getLanguageStats(
               files.map((f) => ({ path: f.path, size: f.size }))
@@ -92,49 +154,34 @@ export async function POST(request: Request) {
 
           checkAborted();
 
-          // Steps 2+: Analysis (parallel) + Tutorial pipeline (sequential) run concurrently
+          // Steps 2-4: Analysis (sequential to avoid rate limits)
+          const projectName = repoName;
+
           send("step_start", "tech_stack");
-          send("step_start", "architecture");
-          send("step_start", "key_files");
-          send("status", "Analyzing codebase...");
-
-          const projectName = `${owner}/${repo}`;
-
-          // Analysis + tutorial pipeline run concurrently; the Gemini
-          // throttle in lib/ai/gemini.ts handles per-model rate limiting.
-          const [analysisResults, tutorialData] = await Promise.all([
-            Promise.all([
-              ai.generate({
-                model: GEMINI_MODELS.fast,
-                messages: [{ role: "user", content: PROMPTS.analyzeTechStack(files) }],
-                responseFormat: "json",
-                responseSchema: GeminiSchemas.techStack,
-              }),
-              ai.generate({
-                model: GEMINI_MODELS.fast,
-                messages: [{ role: "user", content: PROMPTS.analyzeArchitecture(files) }],
-                responseFormat: "json",
-                responseSchema: GeminiSchemas.architecture,
-              }),
-              ai.generate({
-                model: GEMINI_MODELS.fast,
-                messages: [{ role: "user", content: PROMPTS.identifyKeyFiles(files) }],
-                responseFormat: "json",
-              }),
-            ]),
-            runTutorialPipeline(ai, files, projectName, send, checkAborted),
-          ]);
-
-          const [techStackResult, archResult, keyFilesResult] = analysisResults;
-
-          let techStack: { languages?: string[]; frameworks?: string[] };
+          send("status", "Detecting tech stack...");
+          const techStackResult = await ai.generate({
+            model: GEMINI_MODELS.fast,
+            messages: [{ role: "user", content: PROMPTS.analyzeTechStack(files) }],
+            responseFormat: "json",
+            responseSchema: GeminiSchemas.techStack,
+          });
+          let techStack: TechStack;
           try {
             techStack = JSON.parse(techStackResult.content);
           } catch {
-            techStack = { languages: [], frameworks: [] };
+            techStack = { languages: [], frameworks: [], databases: [], tools: [], styling: [] };
           }
           send("tech_stack", techStack);
+          checkAborted();
 
+          send("step_start", "architecture");
+          send("status", "Analyzing architecture...");
+          const archResult = await ai.generate({
+            model: GEMINI_MODELS.fast,
+            messages: [{ role: "user", content: PROMPTS.analyzeArchitecture(files) }],
+            responseFormat: "json",
+            responseSchema: GeminiSchemas.architecture,
+          });
           let architecture: unknown;
           try {
             architecture = JSON.parse(archResult.content);
@@ -142,7 +189,15 @@ export async function POST(request: Request) {
             architecture = { pattern: "Unknown", description: "", layers: [], entryPoints: [] };
           }
           send("architecture", architecture);
+          checkAborted();
 
+          send("step_start", "key_files");
+          send("status", "Identifying key files...");
+          const keyFilesResult = await ai.generate({
+            model: GEMINI_MODELS.fast,
+            messages: [{ role: "user", content: PROMPTS.identifyKeyFiles(files) }],
+            responseFormat: "json",
+          });
           let keyFiles: unknown;
           try {
             keyFiles = JSON.parse(keyFilesResult.content);
@@ -150,40 +205,37 @@ export async function POST(request: Request) {
             keyFiles = [];
           }
           send("key_files", keyFiles);
-
-          // Backward-compat: send summary string extracted from tutorial
-          send("summary", tutorialData.relationships.summary);
-
           checkAborted();
 
-          // Learning path + exercises in parallel (both use deep model)
-          send("step_start", "learning_path");
-          send("step_start", "exercises");
-          send("status", "Generating learning path & exercises...");
+          // Step 5: Tutorial pipeline (sequential internally)
+          send("status", "Generating tutorial...");
+          const tutorialData = await runTutorialPipeline(ai, files, projectName, send, checkAborted);
+          send("summary", tutorialData.relationships.summary);
+          checkAborted();
 
-          const techStackList = [
-            ...(techStack.languages || []),
-            ...(techStack.frameworks || []),
-          ];
-          const codeExamples = files
-            .slice(0, 3)
-            .map((f) => {
-              const lines = f.content.split("\n");
-              const truncated = lines.length > 150
-                ? lines.slice(0, 150).join("\n") + "\n... (truncated)"
-                : f.content;
-              return `--- ${f.path} ---\n${truncated}`;
-            })
-            .join("\n\n");
-
-          const analysisContext = `Summary: ${tutorialData.relationships.summary}\nArchitecture: ${JSON.stringify(architecture)}`;
-          const learningPathPrompt = PROMPTS.generateLearningPathWithContext(
-            techStackList,
-            skillLevel || "beginner",
-            codeExamples,
-            analysisContext
+          // Step 6: Learning path pipeline (sequential internally, 4 steps)
+          send("status", "Building learning path...");
+          const learningPath = await runLearningPipeline(
+            ai,
+            {
+              role,
+              skillLevel: skillLevel || "beginner",
+              techStack,
+              files,
+              projectId: repoName,
+              abstractions: tutorialData.abstractions,
+              relationships: tutorialData.relationships,
+              summary: tutorialData.relationships.summary,
+              architectureJson: JSON.stringify(architecture),
+            },
+            send,
+            checkAborted
           );
+          checkAborted();
 
+          // Step 7: Exercises (single call)
+          send("step_start", "exercises");
+          send("status", "Generating exercises...");
           const exerciseTypes = [
             "error_injection",
             "code_recreation",
@@ -193,42 +245,22 @@ export async function POST(request: Request) {
             "parsons",
             "error_message",
           ];
-
-          const [learningPathResult, exercisesResult] = await Promise.all([
-            ai.generate({
-              model: GEMINI_MODELS.deep,
-              messages: [{ role: "user", content: learningPathPrompt }],
-              responseFormat: "json",
-              responseSchema: GeminiSchemas.learningPath,
-              maxTokens: 32768,
-            }),
-            ai.generate({
-              model: GEMINI_MODELS.deep,
-              messages: [
-                {
-                  role: "user",
-                  content: PROMPTS.generateExercises(
-                    files,
-                    skillLevel || "beginner",
-                    exerciseTypes
-                  ),
-                },
-              ],
-              responseFormat: "json",
-              responseSchema: GeminiSchemas.exercises,
-              maxTokens: 32768,
-            }),
-          ]);
-
-          let learningPath: unknown;
-          try {
-            learningPath = JSON.parse(learningPathResult.content);
-          } catch (parseErr) {
-            console.error("Failed to parse learning path JSON:", parseErr, "Raw content length:", learningPathResult.content.length);
-            learningPath = { title: "", description: "", modules: [] };
-          }
-          send("learning_path", learningPath);
-
+          const exercisesResult = await ai.generate({
+            model: GEMINI_MODELS.deep,
+            messages: [
+              {
+                role: "user",
+                content: PROMPTS.generateExercises(
+                  files,
+                  skillLevel || "beginner",
+                  exerciseTypes
+                ),
+              },
+            ],
+            responseFormat: "json",
+            responseSchema: GeminiSchemas.exercises,
+            maxTokens: 32768,
+          });
           let exercises: unknown;
           try {
             const exercisesParsed = JSON.parse(exercisesResult.content);
