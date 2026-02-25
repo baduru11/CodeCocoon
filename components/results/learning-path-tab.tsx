@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -9,25 +9,27 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  GitBranch,
+  MousePointerClick,
 } from "lucide-react";
-import type { LearningPath } from "@/types/learning";
+import type {
+  LearningPath,
+  LearningPathV1,
+  LearningPathV2,
+  SkillNode,
+} from "@/types/learning";
+import { isV2LearningPath } from "@/types/learning";
+import { SkillTree } from "./skill-tree";
+import { LearningDashboard } from "./learning-dashboard";
+import { ConceptDetailInline } from "./concept-detail-panel";
+import { LinearPathView } from "./linear-path-view";
 
 interface LearningPathTabProps {
   learningPath: LearningPath | null | undefined;
 }
 
 export function LearningPathTab({ learningPath }: LearningPathTabProps) {
-  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
-
-  const toggleModule = (moduleId: string) => {
-    setExpandedModules((prev) => {
-      const next = new Set(prev);
-      next.has(moduleId) ? next.delete(moduleId) : next.add(moduleId);
-      return next;
-    });
-  };
-
-  if (!learningPath?.modules || learningPath.modules.length === 0) {
+  if (!learningPath) {
     return (
       <div className="text-center py-16">
         <GraduationCap size={48} className="mx-auto mb-4 text-muted" />
@@ -35,6 +37,147 @@ export function LearningPathTab({ learningPath }: LearningPathTabProps) {
         <p className="text-sm text-muted mt-1">
           Run a skill assessment first to generate a personalized learning path.
         </p>
+      </div>
+    );
+  }
+
+  if (isV2LearningPath(learningPath)) {
+    return <V2LearningPathView learningPath={learningPath} />;
+  }
+
+  return <V1LearningPathView learningPath={learningPath as LearningPathV1} />;
+}
+
+// ─── V2 Skill Tree View ────────────────────────────────────────────
+
+function V2LearningPathView({ learningPath }: { learningPath: LearningPathV2 }) {
+  // All nodes start as "ready" — completion only happens via user interaction
+  const [nodes, setNodes] = useState<SkillNode[]>(() =>
+    learningPath.nodes.map((n) => ({ ...n, status: "ready" as const }))
+  );
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  const selectedNode = selectedNodeId
+    ? nodes.find((n) => n.id === selectedNodeId) || null
+    : null;
+
+  // Scroll to detail panel when a node is selected
+  useEffect(() => {
+    if (selectedNode && detailRef.current) {
+      detailRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedNode]);
+
+  const handleMarkComplete = useCallback((nodeId: string) => {
+    setNodes((prev) =>
+      prev.map((node) => {
+        if (node.id !== nodeId) return node;
+        return {
+          ...node,
+          status: node.status === "completed" ? "ready" : "completed",
+        } as SkillNode;
+      })
+    );
+  }, []);
+
+  const handleNodeClick = useCallback((nodeId: string) => {
+    setSelectedNodeId((prev) => (prev === nodeId ? null : nodeId));
+  }, []);
+
+  const handleNavigateToNode = useCallback((nodeId: string) => {
+    setSelectedNodeId(nodeId);
+  }, []);
+
+  // Update learning path with current node states for dashboard
+  const currentLearningPath: LearningPathV2 = {
+    ...learningPath,
+    nodes,
+    completedConcepts: nodes.filter((n) => n.status === "completed").length,
+  };
+
+  return (
+    <div className="space-y-10">
+      {/* Dashboard: role, progress, gap analysis, module grid */}
+      <LearningDashboard
+        learningPath={currentLearningPath}
+        onModuleClick={(moduleId) => {
+          // Find first node in this module and select it
+          const mod = learningPath.modules.find((m) => m.id === moduleId);
+          if (mod && mod.nodeIds.length > 0) {
+            setSelectedNodeId(mod.nodeIds[0]);
+          }
+        }}
+      />
+
+      {/* Desktop: Interactive skill tree */}
+      <div className="hidden md:block">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="flex items-center gap-2 text-sm font-bold text-muted uppercase tracking-wide">
+            <GitBranch size={16} />
+            Skill Tree
+          </h3>
+          <span className="flex items-center gap-1.5 text-xs text-muted font-medium">
+            <MousePointerClick size={14} />
+            Click a node to view details
+          </span>
+        </div>
+        <SkillTree
+          nodes={nodes}
+          edges={learningPath.edges}
+          modules={learningPath.modules}
+          onNodeClick={handleNodeClick}
+        />
+      </div>
+
+      {/* Mobile: Linear path view */}
+      <div className="md:hidden">
+        <h3 className="flex items-center gap-2 text-sm font-bold text-muted uppercase tracking-wide mb-4">
+          <GitBranch size={16} />
+          Learning Path
+        </h3>
+        <LinearPathView
+          nodes={nodes}
+          edges={learningPath.edges}
+          onNodeClick={handleNodeClick}
+          onMarkComplete={handleMarkComplete}
+        />
+      </div>
+
+      {/* Concept detail inline (below tree) */}
+      {selectedNode && (
+        <div ref={detailRef}>
+          <ConceptDetailInline
+            node={selectedNode}
+            onClose={() => setSelectedNodeId(null)}
+            onMarkComplete={handleMarkComplete}
+            onNavigateToNode={handleNavigateToNode}
+            allNodes={nodes}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── V1 Accordion View (backward compat) ────────────────────────────
+
+function V1LearningPathView({ learningPath }: { learningPath: LearningPathV1 }) {
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+
+  const toggleModule = (moduleId: string) => {
+    setExpandedModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(moduleId)) { next.delete(moduleId); } else { next.add(moduleId); }
+      return next;
+    });
+  };
+
+  if (!learningPath.modules || learningPath.modules.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <GraduationCap size={48} className="mx-auto mb-4 text-muted" />
+        <p className="text-lg font-bold text-muted">No learning path available.</p>
       </div>
     );
   }
