@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useProcessing } from "@/hooks/use-processing";
@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import {
-  Loader2, CheckCircle2, Circle, ArrowRight, RotateCcw, AlertTriangle,
+  Loader2, CheckCircle2, Circle, ArrowRight, RotateCcw, AlertTriangle, Bell, BellOff,
 } from "lucide-react";
 import type { ProcessConfig } from "@/types/github";
 import type { ProjectSession } from "@/types/project-session";
@@ -23,7 +23,12 @@ export default function ProcessingPage() {
     status, currentStep, steps, results, error, process: startProcessing,
     progressPercent,
   } = useProcessing();
-  const [started, setStarted] = useState(false);
+  const startedRef = useRef(false);
+  const savedRef = useRef(false);
+  const notifiedRef = useRef(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [notifyEnabled, setNotifyEnabled] = useState(false);
+  const [notifyDenied, setNotifyDenied] = useState(false);
 
   // Redirect if no config
   useEffect(() => {
@@ -32,17 +37,15 @@ export default function ProcessingPage() {
     }
   }, [isLoaded, processConfig, router]);
 
-  // Auto-start processing on mount
+  // Auto-start processing on mount or retry
   useEffect(() => {
-    if (isLoaded && processConfig && !started && status === "idle") {
-      setStarted(true);
+    if (isLoaded && processConfig && !startedRef.current && (status === "idle" || status === "error")) {
+      startedRef.current = true;
       startProcessing(processConfig);
     }
-  }, [isLoaded, processConfig, started, status, startProcessing]);
+  }, [isLoaded, processConfig, status, startProcessing, retryCount]);
 
-  // Save results as ProjectSession on complete — uses ref to prevent double-save
-  const savedRef = useRef(false);
-
+  // Save results as ProjectSession on complete
   useEffect(() => {
     if (status === "complete" && results && processConfig && !savedRef.current) {
       // Guard: need at minimum projectData and analysis to save
@@ -81,20 +84,51 @@ export default function ProcessingPage() {
     }
   }, [status, results, processConfig]);
 
-  const handleRetry = () => {
+  // Request notification permission
+  const handleEnableNotify = useCallback(async () => {
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "granted") {
+      setNotifyEnabled(true);
+      return;
+    }
+    if (Notification.permission === "denied") {
+      setNotifyDenied(true);
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      setNotifyEnabled(true);
+    } else {
+      setNotifyDenied(true);
+    }
+  }, []);
+
+  // Send browser notification when processing finishes
+  useEffect(() => {
+    if (!notifyEnabled || notifiedRef.current) return;
+    if (status === "complete") {
+      notifiedRef.current = true;
+      new Notification("CodeCocoon — Processing Complete", {
+        body: `${processConfig?.repoName ?? "Your project"} is ready to explore!`,
+        icon: "/favicon.ico",
+      });
+    } else if (status === "error") {
+      notifiedRef.current = true;
+      new Notification("CodeCocoon — Processing Failed", {
+        body: error || "Something went wrong. You can retry from the processing page.",
+        icon: "/favicon.ico",
+      });
+    }
+  }, [notifyEnabled, status, processConfig?.repoName, error]);
+
+  const handleRetry = useCallback(() => {
     if (processConfig) {
       savedRef.current = false;
-      setStarted(false);
+      startedRef.current = false;
+      notifiedRef.current = false;
+      setRetryCount((c) => c + 1);
     }
-  };
-
-  // Reset started flag on retry (when started becomes false again)
-  useEffect(() => {
-    if (!started && processConfig && status === "error") {
-      setStarted(true);
-      startProcessing(processConfig);
-    }
-  }, [started, processConfig, status, startProcessing]);
+  }, [processConfig]);
 
   if (!isLoaded || !processConfig) {
     return (
@@ -128,6 +162,33 @@ export default function ProcessingPage() {
           color={status === "error" ? "bg-primary" : status === "complete" ? "bg-accent-green" : "bg-secondary"}
         />
       </div>
+
+      {/* Notify Me Button — shown while processing */}
+      {status === "processing" && "Notification" in window && (
+        <div className="mb-8 flex justify-center">
+          {notifyEnabled ? (
+            <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-secondary/10 border border-secondary/25 rounded-xl text-sm font-bold text-secondary">
+              <Bell size={16} />
+              You&apos;ll be notified when it&apos;s done
+            </div>
+          ) : notifyDenied ? (
+            <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-foreground/5 border border-foreground/10 rounded-xl text-sm font-medium text-muted">
+              <BellOff size={16} />
+              Notifications blocked by browser
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleEnableNotify}
+              className="gap-2 cursor-pointer"
+            >
+              <Bell size={16} />
+              Notify me when it&apos;s done
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Steps */}
       <Card className="mb-8 rounded-xl border-foreground/15">
