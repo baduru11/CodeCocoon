@@ -10,9 +10,12 @@ import { cn, bytesToSize, getLanguageFromExtension, getFileExtension } from "@/l
 import {
   Loader2, FileCode, ArrowRight, AlertTriangle, CheckSquare, Square,
   MinusSquare, Filter, Info, ChevronDown, ChevronRight,
+  Monitor, Server, Layers, Container, BarChart3, ShieldCheck, Pencil,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import type { FetchTreeResult, ProcessConfig, TreePreviewFile, FilterReason } from "@/types/github";
 import { SKILL_LEVEL_OPTIONS, FILE_SIZE_WARNING_BYTES } from "@/lib/constants";
+import { ROLE_PRESETS, type RolePreset } from "@/types/learning";
 
 export default function ConfigurePage() {
   const router = useRouter();
@@ -21,7 +24,13 @@ export default function ConfigurePage() {
 
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [skillLevel, setSkillLevel] = useState<ProcessConfig["skillLevel"] | null>(null);
+  const [selectedRole, setSelectedRole] = useState<RolePreset | null>(null);
+  const [customRole, setCustomRole] = useState("");
   const [initialized, setInitialized] = useState(false);
+
+  const ROLE_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+    Monitor, Server, Layers, Container, BarChart3, ShieldCheck,
+  };
   const [showFiltered, setShowFiltered] = useState(false);
   const [filterReasonFilter, setFilterReasonFilter] = useState<FilterReason | "all">("all");
 
@@ -38,19 +47,17 @@ export default function ConfigurePage() {
     return [...treeData.files].sort((a, b) => b.size - a.size);
   }, [treeData]);
 
-  // Initialize selection: exclude large files, include the rest
-  useEffect(() => {
-    if (sortedFiles.length > 0 && !initialized) {
-      const initial = new Set<string>();
-      for (const file of sortedFiles) {
-        if (file.size < FILE_SIZE_WARNING_BYTES && !file.excluded) {
-          initial.add(file.path);
-        }
+  // Render-time initialization: set default file selection when data first loads
+  if (sortedFiles.length > 0 && !initialized) {
+    const initial = new Set<string>();
+    for (const file of sortedFiles) {
+      if (file.size < FILE_SIZE_WARNING_BYTES && !file.excluded) {
+        initial.add(file.path);
       }
-      setSelectedPaths(initial);
-      setInitialized(true);
     }
-  }, [sortedFiles, initialized]);
+    setSelectedPaths(initial);
+    setInitialized(true);
+  }
 
   const isLargeFile = (file: TreePreviewFile) => file.size >= FILE_SIZE_WARNING_BYTES;
 
@@ -160,12 +167,20 @@ export default function ConfigurePage() {
   const handleSubmit = () => {
     if (!treeData || selectedFiles.length === 0 || !skillLevel) return;
 
+    const isUpload = treeData.owner === "__upload__";
+
     const config: ProcessConfig = {
       owner: treeData.owner,
       repo: treeData.repo,
       selectedFiles,
       skillLevel,
       repoName: treeData.repoName,
+      role: selectedRole
+        ? { preset: selectedRole, custom: null }
+        : customRole.trim()
+          ? { preset: null, custom: customRole.trim() }
+          : { preset: "fullstack_dev", custom: null },
+      ...(isUpload && { isUpload: true }),
     };
 
     setProcessConfig(config);
@@ -221,6 +236,64 @@ export default function ConfigurePage() {
                 </button>
               );
             })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Role Selection */}
+      <Card className="mb-8 rounded-xl">
+        <CardHeader>
+          <CardTitle>Your Role</CardTitle>
+          <CardDescription>This customizes the learning path to focus on what matters for your role</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {(Object.entries(ROLE_PRESETS) as [RolePreset, typeof ROLE_PRESETS[RolePreset]][]).map(
+              ([key, preset]) => {
+                const isSelected = selectedRole === key;
+                const IconComponent = ROLE_ICONS[preset.icon];
+                return (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      setSelectedRole(isSelected ? null : key);
+                      if (!isSelected) setCustomRole("");
+                    }}
+                    className={cn(
+                      "cursor-pointer text-left p-5 rounded-xl transition-all",
+                      isSelected
+                        ? "bg-surface border-2 border-foreground shadow-[4px_4px_0px_0px_#1E293B]"
+                        : "bg-surface border-2 border-foreground/15 hover:border-foreground/40 hover:bg-surface/80"
+                    )}
+                  >
+                    {IconComponent && (
+                      <IconComponent size={24} className="mb-2 text-primary" />
+                    )}
+                    <div className="font-bold text-base mb-1">{preset.label}</div>
+                    <div className="text-xs text-muted font-medium leading-relaxed">
+                      {preset.description}
+                    </div>
+                  </button>
+                );
+              }
+            )}
+          </div>
+
+          {/* Custom role input */}
+          <div className="mt-4 pt-4 border-t border-foreground/10">
+            <div className="flex items-center gap-2 mb-2">
+              <Pencil size={14} className="text-muted" />
+              <span className="text-xs font-bold text-muted">Or describe your role</span>
+            </div>
+            <Input
+              value={customRole}
+              onChange={(e) => {
+                setCustomRole(e.target.value);
+                if (e.target.value.trim()) setSelectedRole(null);
+              }}
+              placeholder="e.g., Data engineer learning the API layer"
+              className="text-sm"
+            />
           </div>
         </CardContent>
       </Card>
