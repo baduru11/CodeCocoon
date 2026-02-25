@@ -8,6 +8,16 @@ interface MermaidDiagramProps {
   className?: string;
 }
 
+/** Sanitize common LLM mermaid syntax mistakes */
+function sanitizeChart(raw: string): string {
+  return raw
+    .replace(/```mermaid\s*/gi, "")   // Strip markdown fences
+    .replace(/```\s*$/gm, "")         // Strip closing fences
+    .replace(/\t/g, "  ")             // Tabs to spaces
+    .replace(/;\s*$/gm, "")           // Trailing semicolons
+    .trim();
+}
+
 export function MermaidDiagram({ chart, className }: MermaidDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState("");
@@ -25,7 +35,8 @@ export function MermaidDiagram({ chart, className }: MermaidDiagramProps) {
           securityLevel: "loose",
         });
         const id = `mermaid-${Math.random().toString(36).slice(2)}`;
-        const { svg: rendered } = await mermaid.render(id, chart);
+        const cleaned = sanitizeChart(chart);
+        const { svg: rendered } = await mermaid.render(id, cleaned);
         if (!cancelled) setSvg(rendered);
       } catch (err) {
         console.warn("Mermaid render failed:", err);
