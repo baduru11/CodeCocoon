@@ -2,8 +2,9 @@ import { GoogleGenAI, Type } from "@google/genai";
 import type { AIProvider, GenerateOptions, GenerateResult, StreamChunk } from "./provider";
 import { GEMINI_MODELS } from "@/lib/constants";
 
-const MAX_RETRIES = 3;
-const BASE_DELAY_MS = 5000;
+const MAX_RETRIES = 5;
+const BASE_DELAY_MS = 10000;
+const BASE_DELAY_503_MS = 20000; // Longer backoff for server overload
 
 function isRetryable(error: unknown): boolean {
   if (error instanceof Error) {
@@ -32,11 +33,22 @@ function isRetryable(error: unknown): boolean {
   return false;
 }
 
+function is503(error: unknown): boolean {
+  if (error instanceof Error) {
+    const msg = error.message;
+    if (msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("high demand")) return true;
+  }
+  if (typeof error === "object" && error !== null && "status" in error) {
+    return (error as { status: number }).status === 503;
+  }
+  return false;
+}
+
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// ─── Per-model rate limiter ──────────────────────────────────────────
+// ─── Global serial rate limiter ──────────────────────────────────────
 
 class RequestQueue {
   private maxConcurrent: number;
@@ -86,25 +98,12 @@ class RequestQueue {
   }
 }
 
-class GeminiThrottle {
-  private queues = new Map<string, RequestQueue>();
-
-  constructor() {
-    // gemini-2.0-flash: 15 RPM limit → ~13 effective RPM
-    this.queues.set(GEMINI_MODELS.fast, new RequestQueue(2, 4500));
-    // gemini-2.5-flash: 10 RPM limit → ~9 effective RPM
-    this.queues.set(GEMINI_MODELS.deep, new RequestQueue(2, 6500));
-  }
-
-  run<T>(model: string, fn: () => Promise<T>): Promise<T> {
-    const queue = this.queues.get(model);
-    if (!queue) return fn();
-    return queue.run(fn);
-  }
-}
-
-/** Module-level singleton — shared across all GeminiProvider instances */
-const throttle = new GeminiThrottle();
+/**
+ * Single global serial queue — ensures only 1 Gemini API call at a time.
+ * 7s gap → ~8.5 RPM effective, safely under the 10 RPM free-tier limit
+ * for gemini-2.5-flash (the most restrictive model).
+ */
+const globalQueue = new RequestQueue(1, 7000);
 
 export class GeminiProvider implements AIProvider {
   name = "gemini";
@@ -144,7 +143,7 @@ export class GeminiProvider implements AIProvider {
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const response = await throttle.run(model, () =>
+        const response = await globalQueue.run(() =>
           this.client.models.generateContent({ model, contents, config })
         );
 
@@ -157,10 +156,12 @@ export class GeminiProvider implements AIProvider {
         };
       } catch (error) {
         if (attempt < MAX_RETRIES && isRetryable(error)) {
-          const baseDelay = BASE_DELAY_MS * Math.pow(2, attempt);
+          const base = is503(error) ? BASE_DELAY_503_MS : BASE_DELAY_MS;
+          const baseDelay = base * Math.pow(2, attempt);
           const jitter = baseDelay * (0.5 + Math.random());
-          const delay = Math.round(jitter);
-          console.warn(`Gemini API error (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`);
+          const delay = Math.round(Math.min(jitter, 120_000)); // Cap at 2 min
+          const errorType = is503(error) ? "503 overload" : "rate limit";
+          console.warn(`Gemini API ${errorType} (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${Math.round(delay / 1000)}s...`);
           await sleep(delay);
           continue;
         }
@@ -180,7 +181,7 @@ export class GeminiProvider implements AIProvider {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         // Throttle only the initial API call; stream iteration happens outside the slot
-        const stream = await throttle.run(model, () =>
+        const stream = await globalQueue.run(() =>
           this.client.models.generateContentStream({ model, contents, config })
         );
 
@@ -196,10 +197,12 @@ export class GeminiProvider implements AIProvider {
       } catch (error) {
         lastError = error;
         if (attempt < MAX_RETRIES && isRetryable(error)) {
-          const baseDelay = BASE_DELAY_MS * Math.pow(2, attempt);
+          const base = is503(error) ? BASE_DELAY_503_MS : BASE_DELAY_MS;
+          const baseDelay = base * Math.pow(2, attempt);
           const jitter = baseDelay * (0.5 + Math.random());
-          const delay = Math.round(jitter);
-          console.warn(`Gemini stream error (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`);
+          const delay = Math.round(Math.min(jitter, 120_000));
+          const errorType = is503(error) ? "503 overload" : "rate limit";
+          console.warn(`Gemini stream ${errorType} (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${Math.round(delay / 1000)}s...`);
           await sleep(delay);
           continue;
         }
@@ -346,5 +349,113 @@ export const GeminiSchemas = {
       },
     },
     required: ["exercises"],
+  },
+
+  // ─── Learning Path V2 Pipeline Schemas ───────────────────────────
+
+  conceptExtraction: {
+    type: Type.OBJECT,
+    properties: {
+      concepts: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING },
+            category: { type: Type.STRING },
+            relevanceScore: { type: Type.NUMBER },
+            fileReferences: { type: Type.ARRAY, items: { type: Type.STRING } },
+            moduleGroup: { type: Type.STRING },
+          },
+          required: ["name", "category", "relevanceScore", "fileReferences", "moduleGroup"],
+        },
+      },
+    },
+    required: ["concepts"],
+  },
+
+  dependencyGraph: {
+    type: Type.OBJECT,
+    properties: {
+      nodes: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            index: { type: Type.NUMBER },
+            prerequisites: { type: Type.ARRAY, items: { type: Type.NUMBER } },
+            difficulty: { type: Type.NUMBER },
+            estimatedMinutes: { type: Type.NUMBER },
+          },
+          required: ["index", "prerequisites", "difficulty", "estimatedMinutes"],
+        },
+      },
+      gapAnalysis: {
+        type: Type.OBJECT,
+        properties: {
+          likelyKnown: { type: Type.ARRAY, items: { type: Type.STRING } },
+          focusAreas: { type: Type.ARRAY, items: { type: Type.STRING } },
+          summary: { type: Type.STRING },
+        },
+        required: ["likelyKnown", "focusAreas", "summary"],
+      },
+    },
+    required: ["nodes", "gapAnalysis"],
+  },
+
+  lessonContent: {
+    type: Type.OBJECT,
+    properties: {
+      lessons: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            conceptIndex: { type: Type.NUMBER },
+            explanation: { type: Type.STRING },
+            inYourCodebase: { type: Type.STRING },
+            keyTakeaways: { type: Type.ARRAY, items: { type: Type.STRING } },
+            tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+          required: ["conceptIndex", "explanation", "inYourCodebase", "keyTakeaways", "tags"],
+        },
+      },
+    },
+    required: ["lessons"],
+  },
+
+  resourceCuration: {
+    type: Type.OBJECT,
+    properties: {
+      resources: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            conceptIndex: { type: Type.NUMBER },
+            recommendations: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  platform: { type: Type.STRING },
+                  title: { type: Type.STRING },
+                  url: { type: Type.STRING },
+                  type: { type: Type.STRING },
+                  intent: { type: Type.STRING },
+                  priceTier: { type: Type.STRING },
+                  difficulty: { type: Type.STRING },
+                  estimatedDuration: { type: Type.STRING },
+                  whyThisResource: { type: Type.STRING },
+                },
+                required: ["platform", "title", "url", "type", "intent", "priceTier", "difficulty", "estimatedDuration", "whyThisResource"],
+              },
+            },
+          },
+          required: ["conceptIndex", "recommendations"],
+        },
+      },
+    },
+    required: ["resources"],
   },
 };

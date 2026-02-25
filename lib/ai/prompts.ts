@@ -4,6 +4,20 @@ import type { TutorialAbstraction, TutorialRelationships } from "@/types/tutoria
 const MAX_LINES_PER_FILE = 150;
 const MAX_TOTAL_CHARS = 80_000;
 
+const SKILL_LEVEL_DESCRIPTIONS: Record<string, string> = {
+  beginner:
+    "ZERO or minimal coding experience. May have used AI tools to generate code but does NOT understand how it works. Needs programming fundamentals explained alongside the tech stack. Assume no prior knowledge of variables, functions, loops, or any language.",
+  intermediate:
+    "Has 1-2 years of coding experience. Understands basic syntax, control flow, functions, and simple data structures in at least one language. Comfortable reading code but may be unfamiliar with the specific frameworks and patterns in this project.",
+  advanced:
+    "Experienced developer with 3+ years of professional work. Understands design patterns, async/concurrency, testing, and architecture. Familiar with most concepts but wants to learn the specific patterns and decisions in this codebase.",
+};
+
+function getSkillLevelContext(skillLevel: string): string {
+  const desc = SKILL_LEVEL_DESCRIPTIONS[skillLevel] || SKILL_LEVEL_DESCRIPTIONS.beginner;
+  return `SKILL LEVEL: ${skillLevel}\nSKILL LEVEL CONTEXT: ${desc}`;
+}
+
 function formatFilesForPrompt(files: RepoFile[]): string {
   return files
     .map((f) => `--- FILE: ${f.path} (${f.language}) ---\n${f.content}`)
@@ -209,17 +223,15 @@ Create a structured learning path with modules for each technology. Each module 
 For each lesson, provide:
 - A clear title and description
 - How this concept appears in THEIR code (keyConceptsFromCode) — reference specific patterns from the code above
-- 2-4 high-quality resources with REAL, WORKING URLs:
-  * Official documentation pages (e.g., https://react.dev/learn/...)
-  * MDN Web Docs for web fundamentals (e.g., https://developer.mozilla.org/...)
-  * freeCodeCamp articles/tutorials
-  * YouTube tutorials from reputable channels
+- 2-4 high-quality resources. For URLs, use ONLY:
+  * Official docs you're confident about (e.g., https://react.dev/learn, https://developer.mozilla.org/en-US/docs/...)
+  * Search URLs for anything else (e.g., https://www.youtube.com/results?search_query=TOPIC+HERE, https://www.google.com/search?q=TOPIC+site:freecodecamp.org)
+  * NEVER guess or invent a specific page URL. Use search URLs when unsure.
 
 IMPORTANT:
 - Adapt complexity to their skill level
 - Start with fundamentals if beginner, skip basics if advanced
 - Always connect lessons back to their actual code
-- Resources must be REAL URLs that actually exist
 - Each module should build on the previous one`;
   },
 
@@ -245,18 +257,16 @@ Create a structured learning path with modules for each technology. Each module 
 For each lesson, provide:
 - A clear title and description
 - How this concept appears in THEIR code (keyConceptsFromCode) — reference specific patterns from the code and analysis above
-- 2-4 high-quality resources with REAL, WORKING URLs:
-  * Official documentation pages (e.g., https://react.dev/learn/...)
-  * MDN Web Docs for web fundamentals (e.g., https://developer.mozilla.org/...)
-  * freeCodeCamp articles/tutorials
-  * YouTube tutorials from reputable channels
+- 2-4 high-quality resources. For URLs, use ONLY:
+  * Official docs you're confident about (e.g., https://react.dev/learn, https://developer.mozilla.org/en-US/docs/...)
+  * Search URLs for anything else (e.g., https://www.youtube.com/results?search_query=TOPIC+HERE, https://www.google.com/search?q=TOPIC+site:freecodecamp.org)
+  * NEVER guess or invent a specific page URL. Use search URLs when unsure.
 
 IMPORTANT:
 - Use the analysis context to personalize lessons — reference their architecture pattern, tech choices, and code quality insights
 - Adapt complexity to their skill level
 - Start with fundamentals if beginner, skip basics if advanced
 - Always connect lessons back to their actual code and project structure
-- Resources must be REAL URLs that actually exist
 - Each module should build on the previous one
 - Prioritize lessons that address code quality issues found in the analysis`;
   },
@@ -634,8 +644,217 @@ ${prevChapter ? `- Begin with a brief transition from the previous chapter [${pr
 - Describe internal implementation with a mermaid \`sequenceDiagram\` (max 5 participants)
 - ALWAYS use proper Markdown links for other chapters: [Title](filename)
 - Use mermaid diagrams for complex concepts (flowcharts, sequence diagrams)
+- MERMAID SYNTAX RULES: Never use special characters like parentheses, brackets, or quotes inside node labels without wrapping the label in quotes. Use simple alphanumeric node IDs (e.g., A, B, C). Avoid semicolons inside labels. Keep labels short (under 40 chars). For sequenceDiagram, use simple participant names without spaces. Test that your diagram would parse correctly.
 - Heavily use analogies and examples to explain technical concepts
 ${nextChapter ? `- End with a conclusion and transition to the next chapter [${nextChapter.name}](${nextChapter.filename}) using a markdown link` : "- End with a conclusion summarizing what was covered"}
 - Tone: welcoming, easy for newcomers, like explaining to a friend`;
+  },
+
+  // ─── Learning Path Pipeline Prompts (V2) ──────────────────────────
+
+  /**
+   * Step 1: Role-Based Concept Extraction (fast model)
+   * Extracts 10-20 concepts filtered by role relevance.
+   */
+  extractRoleConcepts(params: {
+    roleLabel: string;
+    roleDescription: string;
+    skillLevel: string;
+    techStack: string[];
+    abstractionsSummary: string;
+    codeContext: string;
+  }): string {
+    const { roleLabel, roleDescription, skillLevel, techStack, abstractionsSummary, codeContext } = params;
+    return `You are an expert developer analyzing a codebase to identify the most important concepts for a specific role.
+
+ROLE: ${roleLabel}
+ROLE CONTEXT: ${roleDescription}
+${getSkillLevelContext(skillLevel)}
+TECH STACK: ${techStack.join(", ")}
+
+CODEBASE ABSTRACTIONS (from prior analysis):
+${abstractionsSummary}
+
+CODE SAMPLES:
+${codeContext}
+
+Identify 10-20 concepts that someone in the "${roleLabel}" role needs to understand about this codebase. For each concept:
+
+1. "name": A clear, specific name (e.g., "React Server Components", "API Route Handlers", "Supabase Auth Flow")
+2. "category": One of "language", "framework", "pattern", "tooling", "architecture", "library"
+3. "relevanceScore": 0.0-1.0 how relevant this is for the ${roleLabel} role (1.0 = essential, 0.3 = nice-to-know)
+4. "fileReferences": Array of file paths from the codebase where this concept appears
+5. "moduleGroup": A grouping label (e.g., "React Fundamentals", "Data Layer", "Auth & Security")
+
+IMPORTANT:
+- Filter by role: A "${roleLabel}" doesn't need to know everything. Prioritize what matters for their role.
+- Be specific to THIS codebase, not generic tutorials
+- Each concept should be learnable in 10-45 minutes
+- Group related concepts into 3-6 module groups
+- Aim for 12-18 concepts (minimum 10, maximum 20)
+
+Output as JSON: { "concepts": [...] }`;
+  },
+
+  /**
+   * Step 2: Dependency Graph & Gap Analysis (fast model)
+   * Determines prerequisite ordering, difficulty, and skill gaps.
+   */
+  buildDependencyGraph(params: {
+    concepts: { name: string; category: string; relevanceScore: number; moduleGroup: string }[];
+    skillLevel: string;
+    codebasePatterns: string;
+  }): string {
+    const { concepts, skillLevel, codebasePatterns } = params;
+    const conceptList = concepts
+      .map((c, i) => `${i}. "${c.name}" (${c.category}, relevance: ${c.relevanceScore}, group: "${c.moduleGroup}")`)
+      .join("\n");
+
+    return `You are an expert instructor designing a learning dependency graph.
+
+${getSkillLevelContext(skillLevel)}
+CODEBASE PATTERNS: ${codebasePatterns}
+
+CONCEPTS TO ORGANIZE:
+${conceptList}
+
+For each concept (by index), determine:
+
+1. "prerequisites": Array of concept indices that MUST be learned first (e.g., you need JSX before Component Composition). Use empty array [] if no prerequisites.
+2. "difficulty": 1-5 rating relative to the "${skillLevel}" skill level
+3. "estimatedMinutes": Estimated learning time in minutes (10-45)
+
+Also provide a gap analysis:
+- "likelyKnown": Array of concept names the student probably already knows at "${skillLevel}" level. For "beginner" level this should be EMPTY or near-empty since they have no coding experience.
+- "focusAreas": Array of concept names the student should prioritize
+- "summary": 2-3 sentence personalized analysis (e.g., "As an intermediate developer, you likely understand basic React concepts but may be unfamiliar with Server Components and the App Router patterns used here." For beginners: "As someone new to coding, you'll need to start with the fundamentals...")
+
+IMPORTANT:
+- Prerequisites should form a valid DAG (no circular dependencies)
+- A concept can have 0-3 prerequisites max
+- Difficulty 1 = trivial for this level, 5 = challenging stretch
+- Be realistic about what someone at "${skillLevel}" level already knows
+
+Output as JSON:
+{
+  "nodes": [{ "index": 0, "prerequisites": [1, 2], "difficulty": 3, "estimatedMinutes": 20 }, ...],
+  "gapAnalysis": { "likelyKnown": [...], "focusAreas": [...], "summary": "..." }
+}`;
+  },
+
+  /**
+   * Step 3: Lesson Content Generation (deep model)
+   * Generates substantive explanations for all concepts in a single call.
+   */
+  generateLessonContent(params: {
+    concepts: { name: string; category: string; fileReferences: string[]; moduleGroup: string }[];
+    skillLevel: string;
+    codeContext: string;
+  }): string {
+    const { concepts, skillLevel, codeContext } = params;
+    const conceptList = concepts
+      .map((c, i) => `${i}. "${c.name}" (${c.category}, files: [${c.fileReferences.join(", ")}], group: "${c.moduleGroup}")`)
+      .join("\n");
+
+    return `You are an expert technical writer creating substantive learning content.
+
+${getSkillLevelContext(skillLevel)}
+
+CONCEPTS:
+${conceptList}
+
+CODEBASE CONTEXT:
+${codeContext}
+
+For EACH concept, generate:
+
+1. "explanation" (100-200 words): What this concept is, why it matters, and a simple analogy. Write at a level appropriate for a "${skillLevel}" developer. Be substantive — the reader should understand the concept at a surface level after reading this.
+
+2. "inYourCodebase" (2-3 sentences): Specifically where and how this concept appears in THIS codebase. Reference actual file paths. Example: "In this project, React Server Components are used in app/page.tsx and app/dashboard/page.tsx. The layout.tsx file acts as a Server Component that wraps client-side interactive elements."
+
+3. "keyTakeaways" (2-3 bullet points): The most important things to remember about this concept.
+
+4. "tags" (string array): 3-5 tags for resource matching. Include the concept name, related technologies, and broader topics. Example: ["react-hooks", "useState", "state-management", "react"]
+
+IMPORTANT:
+- Be substantive but not exhaustive — you're a doctor diagnosing what they need to learn, not teaching the full course
+- Reference actual files and patterns from the codebase context
+- Use analogies to make complex concepts accessible
+- Each explanation should stand alone — don't reference other concepts' explanations
+- Write all content in a single response
+
+Output as JSON: { "lessons": [{ "conceptIndex": 0, "explanation": "...", "inYourCodebase": "...", "keyTakeaways": ["...", "..."], "tags": ["...", "..."] }, ...] }`;
+  },
+
+  /**
+   * Step 4: Resource Curation (fast model)
+   * Recommends 3-5 learning resources per concept from well-known platforms.
+   */
+  curateResources(params: {
+    concepts: { name: string; tags: string[]; difficulty: number }[];
+    skillLevel: string;
+  }): string {
+    const { concepts, skillLevel } = params;
+    const conceptList = concepts
+      .map((c, i) => `${i}. "${c.name}" (difficulty: ${c.difficulty}/5, tags: [${c.tags.join(", ")}])`)
+      .join("\n");
+
+    return `You are a learning resource curator recommending the best external resources for each concept.
+
+${getSkillLevelContext(skillLevel)}
+
+CONCEPTS:
+${conceptList}
+
+For EACH concept, recommend 3-5 resources. Each resource needs:
+
+1. "platform": The platform name (e.g., "MDN", "React Docs", "freeCodeCamp", "Coursera", "YouTube")
+2. "title": A descriptive title for the resource
+3. "url": A URL that DEFINITELY works (see URL RULES below)
+4. "type": One of "course", "video", "article", "interactive", "documentation"
+5. "intent": One of:
+   - "start_here" — Free, beginner-friendly entry point
+   - "go_deeper" — Paid/longer content for mastery
+   - "quick_reference" — Docs and cheat sheets for ongoing reference
+6. "priceTier": "free", "paid", or "subscription"
+7. "difficulty": "beginner", "intermediate", or "advanced"
+8. "estimatedDuration": Human-readable (e.g., "15 min read", "2 hours", "4 weeks")
+9. "whyThisResource": One sentence explaining why this resource is good for this concept in context
+
+CRITICAL URL RULES — URLs MUST be real and working. Use ONLY these strategies:
+
+STRATEGY A — Official documentation (stable paths you're confident about):
+  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/...
+  * https://developer.mozilla.org/en-US/docs/Web/CSS/...
+  * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/...
+  * https://react.dev/learn or https://react.dev/reference/react/...
+  * https://nextjs.org/docs/app/...
+  * https://www.typescriptlang.org/docs/handbook/...
+  * https://tailwindcss.com/docs/...
+  * https://javascript.info/...
+  * https://nodejs.org/docs/latest/api/...
+  ONLY use these if you are certain the specific path exists. When in doubt, use the section landing page (e.g., https://react.dev/learn instead of guessing a sub-page).
+
+STRATEGY B — Search URLs (for YouTube, Udemy, Coursera, Google, and any platform where you're NOT certain of the exact page):
+  * YouTube: https://www.youtube.com/results?search_query=TOPIC+HERE (URL-encode spaces as +)
+  * Google: https://www.google.com/search?q=TOPIC+HERE+site:DOMAIN
+  * Udemy: https://www.udemy.com/courses/search/?q=TOPIC+HERE
+  * Coursera: https://www.coursera.org/search?query=TOPIC+HERE
+  * freeCodeCamp: https://www.google.com/search?q=TOPIC+HERE+site:freecodecamp.org
+  * Frontend Masters: https://frontendmasters.com/courses/#q=TOPIC
+  * Codecademy: https://www.codecademy.com/search?query=TOPIC+HERE
+  * Egghead: https://egghead.io/q/TOPIC+HERE
+
+  For STRATEGY B, set the title to describe what the user should search for, e.g., "Search: React Hooks tutorial for beginners".
+
+NEVER guess or invent a specific page URL. If unsure, ALWAYS use Strategy B (search URL).
+
+REQUIRED RESOURCE MIX per concept (provide BOTH docs AND learning platforms):
+- 1 official documentation link (Strategy A) as "quick_reference" — e.g., MDN, React Docs, TypeScript Handbook, etc.
+- 1 free learning resource (Strategy B) as "start_here" — e.g., YouTube search, freeCodeCamp search, Codecademy search
+- 1 paid/deeper learning resource (Strategy B) as "go_deeper" — e.g., Udemy search, Coursera search, Frontend Masters search
+- You MUST include at least 1 official doc AND at least 1 learning platform (YouTube/Udemy/Coursera/freeCodeCamp) per concept
+
+Output as JSON: { "resources": [{ "conceptIndex": 0, "recommendations": [{ "platform": "...", "title": "...", "url": "...", "type": "...", "intent": "...", "priceTier": "...", "difficulty": "...", "estimatedDuration": "...", "whyThisResource": "..." }, ...] }, ...] }`;
   },
 };
