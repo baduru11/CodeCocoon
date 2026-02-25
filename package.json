@@ -19,6 +19,7 @@
     "@supabase/supabase-js": "^2.95.3",
     "@uiw/react-codemirror": "^4.25.4",
     "clsx": "^2.1.1",
+    "dagre": "^0.8.5",
     "js-yaml": "^4.1.1",
     "lucide-react": "^0.564.0",
     "mermaid": "^11.12.2",
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/dagre": "^0.7.53",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20",
     "@types/react": "^19",
