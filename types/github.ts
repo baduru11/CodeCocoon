@@ -97,4 +97,10 @@ export interface ProcessConfig {
   selectedFiles: TreePreviewFile[];
   skillLevel: "beginner" | "intermediate" | "advanced";
   repoName: string;
+  role?: {
+    preset: string | null;
+    custom: string | null;
+  };
+  /** True when files come from local upload (not GitHub). */
+  isUpload?: boolean;
 }

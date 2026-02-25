@@ -45,14 +45,23 @@ export interface AnalysisResult {
 export interface AnalysisStreamEvent {
   type:
     | "status"
+    | "step_start"
     | "tech_stack"
     | "architecture"
     | "key_files"
     | "summary"
+    | "files_fetched"
     | "tutorial_abstractions"
     | "tutorial_relationships"
     | "tutorial_order"
     | "tutorial_chapter"
+    // Learning path pipeline events
+    | "learning_concepts"
+    | "learning_graph"
+    | "learning_lessons"
+    | "learning_resources"
+    | "learning_path"
+    | "exercises"
     | "complete"
     | "error";
   data: unknown;
