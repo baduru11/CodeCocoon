@@ -6,6 +6,11 @@ export function useScrollspy(sectionIds: string[], offset = 80) {
   const [activeId, setActiveId] = useState<string>("");
   const observerRef = useRef<IntersectionObserver | null>(null);
 
+  // Render-time initialization: set first section as active
+  if (!activeId && sectionIds.length > 0) {
+    setActiveId(sectionIds[0]);
+  }
+
   useEffect(() => {
     if (sectionIds.length === 0) return;
 
@@ -37,18 +42,11 @@ export function useScrollspy(sectionIds: string[], offset = 80) {
     );
 
     // Observe all sections
-    const elements: Element[] = [];
     for (const id of sectionIds) {
       const el = document.getElementById(id);
       if (el) {
         observerRef.current.observe(el);
-        elements.push(el);
       }
-    }
-
-    // Set initial active to first section
-    if (!activeId && sectionIds.length > 0) {
-      setActiveId(sectionIds[0]);
     }
 
     return () => {

@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import type { ProjectSession } from "@/types/project-session";
 import {
   getAllSessions,
   getActiveSessionId,
   setActiveSessionId as setActiveId,
-  getSession,
   deleteSession as removeSessionFromStorage,
   getFavoriteIds,
   toggleFavorite as toggleFav,
@@ -18,13 +17,13 @@ export function useProjectSessions() {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Hydrate from localStorage on mount
-  useEffect(() => {
+  // Render-time hydration from localStorage (client-only, runs once)
+  if (!isLoaded && typeof window !== "undefined") {
     setSessions(getAllSessions());
     setActiveSessionIdState(getActiveSessionId());
     setFavorites(getFavoriteIds());
     setIsLoaded(true);
-  }, []);
+  }
 
   const activeSession = activeSessionId
     ? sessions.find((s) => s.id === activeSessionId) ?? null

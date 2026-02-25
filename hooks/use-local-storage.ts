@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 export function useLocalStorage<T>(key: string, initialValue: T) {
   const [storedValue, setStoredValue] = useState<T>(initialValue);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  useEffect(() => {
+  // Render-time hydration from localStorage (client-only, runs once)
+  if (!isLoaded && typeof window !== "undefined") {
     try {
       const item = window.localStorage.getItem(key);
       if (item) {
@@ -16,7 +17,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
       console.warn(`Error reading localStorage key "${key}":`, error);
     }
     setIsLoaded(true);
-  }, [key]);
+  }
 
   const setValue = (value: T | ((val: T) => T)) => {
     try {

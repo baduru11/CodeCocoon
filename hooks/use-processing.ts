@@ -65,19 +65,35 @@ export function useProcessing() {
     completedRef.current = false;
 
     try {
+      // Build request body — for uploads, include file contents directly
+      const requestBody: Record<string, unknown> = {
+        owner: config.owner,
+        repo: config.repo,
+        selectedFiles: config.selectedFiles.map((f) => ({
+          path: f.path,
+          sha: f.sha,
+          size: f.size,
+        })),
+        skillLevel: config.skillLevel,
+        role: config.role || null,
+      };
+
+      if (config.isUpload) {
+        try {
+          const stored = localStorage.getItem("projectData");
+          if (stored) {
+            const projectData = JSON.parse(stored) as FetchRepoResult;
+            requestBody.uploadedFiles = projectData.files;
+          }
+        } catch {
+          // Fall through — server will attempt GitHub fetch as fallback
+        }
+      }
+
       const res = await fetch("/api/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          owner: config.owner,
-          repo: config.repo,
-          selectedFiles: config.selectedFiles.map((f) => ({
-            path: f.path,
-            sha: f.sha,
-            size: f.size,
-          })),
-          skillLevel: config.skillLevel,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!res.ok) {
@@ -216,8 +232,19 @@ export function useProcessing() {
                 },
               }));
               break;
+            case "learning_concepts":
+              markStepDone("learning_concepts");
+              break;
+            case "learning_graph":
+              markStepDone("learning_graph");
+              break;
+            case "learning_lessons":
+              markStepDone("learning_lessons");
+              break;
+            case "learning_resources":
+              markStepDone("learning_resources");
+              break;
             case "learning_path":
-              markStepDone("learning_path");
               setResults((prev) => ({
                 ...prev,
                 learningPath: event.data as LearningPath,
