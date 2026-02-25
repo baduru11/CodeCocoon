@@ -53,9 +53,18 @@ export async function POST(request: Request) {
       totalSize += entry.size;
     }
 
+    // Derive project name from common top-level folder (e.g. "my-app/src/..." → "my-app")
+    let repoName = "Uploaded Project";
+    if (files.length > 0 && files[0].path.includes("/")) {
+      const topDir = files[0].path.split("/")[0];
+      if (topDir && files.every((f) => f.path.startsWith(topDir + "/"))) {
+        repoName = topDir;
+      }
+    }
+
     return NextResponse.json({
       files,
-      repoName: "Uploaded Project",
+      repoName,
       fileCount: files.length,
       languages,
       totalSize,

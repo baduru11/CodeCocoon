@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +9,61 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useProjectSessions } from "@/hooks/use-project-sessions";
-import { Link2, GitBranch, Upload, ArrowRight, Loader2, FileCode, X, AlertCircle, Search } from "lucide-react";
+import { Link2, GitBranch, Upload, ArrowRight, Loader2, FileCode, X, AlertCircle, Search, FolderOpen } from "lucide-react";
 import Link from "next/link";
 import type { FetchRepoResult, GitHubRepo, FetchTreeResult } from "@/types/github";
 
+
+/** Recursively read all files from dropped DataTransfer items (handles folders). */
+async function readDroppedEntries(
+  items: DataTransferItemList
+): Promise<{ file: File; path: string }[]> {
+  const result: { file: File; path: string }[] = [];
+
+  const readAllEntries = (
+    reader: FileSystemDirectoryReader
+  ): Promise<FileSystemEntry[]> =>
+    new Promise((resolve, reject) => {
+      const all: FileSystemEntry[] = [];
+      const readBatch = () => {
+        reader.readEntries((batch) => {
+          if (batch.length === 0) resolve(all);
+          else {
+            all.push(...batch);
+            readBatch();
+          }
+        }, reject);
+      };
+      readBatch();
+    });
+
+  const readEntry = async (
+    entry: FileSystemEntry,
+    parentPath: string
+  ): Promise<void> => {
+    if (entry.isFile) {
+      const file = await new Promise<File>((resolve, reject) => {
+        (entry as FileSystemFileEntry).file(resolve, reject);
+      });
+      result.push({ file, path: parentPath + entry.name });
+    } else if (entry.isDirectory) {
+      const reader = (entry as FileSystemDirectoryEntry).createReader();
+      const entries = await readAllEntries(reader);
+      for (const e of entries) {
+        await readEntry(e, parentPath + entry.name + "/");
+      }
+    }
+  };
+
+  for (const item of Array.from(items)) {
+    const entry = item.webkitGetAsEntry?.();
+    if (entry) {
+      await readEntry(entry, "");
+    }
+  }
+
+  return result;
+}
 
 export default function ConnectPage() {
   const router = useRouter();
@@ -31,10 +82,12 @@ export default function ConnectPage() {
   const [pendingUrl, setPendingUrl] = useState("");
 
   // Upload state
-  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [uploadFiles, setUploadFiles] = useState<{ file: File; path: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const parseRepoName = (urlOrOwnerRepo: string): string | null => {
     // Handle full URL
@@ -144,11 +197,54 @@ export default function ConnectPage() {
   }, [isAuthenticated]);
 
   // Upload handlers
-  const handleUploadFiles = useCallback((newFiles: FileList | null) => {
-    if (!newFiles) return;
-    setUploadFiles((prev) => [...prev, ...Array.from(newFiles)]);
+  const addUploadFiles = useCallback((newFiles: { file: File; path: string }[]) => {
+    if (newFiles.length === 0) return;
+    setUploadFiles((prev) => [...prev, ...newFiles]);
     setUploadError("");
   }, []);
+
+  const handleFileInput = useCallback(
+    (fileList: FileList | null) => {
+      if (!fileList) return;
+      addUploadFiles(Array.from(fileList).map((f) => ({ file: f, path: f.name })));
+    },
+    [addUploadFiles]
+  );
+
+  const handleFolderInput = useCallback(
+    (fileList: FileList | null) => {
+      if (!fileList) return;
+      addUploadFiles(
+        Array.from(fileList).map((f) => ({
+          file: f,
+          path: f.webkitRelativePath || f.name,
+        }))
+      );
+    },
+    [addUploadFiles]
+  );
+
+  const handleUploadDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+
+      if (e.dataTransfer.items?.length) {
+        const hasDir = Array.from(e.dataTransfer.items).some(
+          (item) => item.webkitGetAsEntry?.()?.isDirectory
+        );
+        if (hasDir) {
+          const entries = await readDroppedEntries(e.dataTransfer.items);
+          addUploadFiles(entries);
+          return;
+        }
+      }
+      if (e.dataTransfer.files) {
+        handleFileInput(e.dataTransfer.files);
+      }
+    },
+    [addUploadFiles, handleFileInput]
+  );
 
   const removeUploadFile = (index: number) => {
     setUploadFiles((prev) => prev.filter((_, i) => i !== index));
@@ -163,7 +259,7 @@ export default function ConnectPage() {
     setUploadError("");
     try {
       const formData = new FormData();
-      uploadFiles.forEach((file) => formData.append("files", file));
+      uploadFiles.forEach(({ file, path }) => formData.append("files", file, path));
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       if (!res.ok) {
         const data = await res.json();
@@ -171,6 +267,38 @@ export default function ConnectPage() {
       }
       const data: FetchRepoResult = await res.json();
       setProjectData(data);
+
+      // Build synthetic treeData so the configure page works for uploads
+      const syntheticTree: FetchTreeResult = {
+        files: data.files.map((f) => ({
+          path: f.path,
+          sha: "",
+          size: f.size,
+          language: f.language,
+          excluded: false,
+        })),
+        excludedFiles: [],
+        repoName: data.repoName,
+        owner: "__upload__",
+        repo: data.repoName,
+        totalFiles: data.fileCount,
+        totalExcludedFiles: 0,
+        totalSize: data.totalSize,
+        languages: data.languages,
+        filterSummary: {
+          totalScanned: data.fileCount,
+          totalIncluded: data.fileCount,
+          totalExcluded: 0,
+          excludedByReason: {
+            too_large: 0,
+            binary_file: 0,
+            ignored_directory: 0,
+            unsupported_extension: 0,
+            non_file: 0,
+          },
+        },
+      };
+      setTreeData(syntheticTree);
       router.push("/configure");
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
@@ -300,7 +428,7 @@ export default function ConnectPage() {
                   />
                 </div>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {repos.filter((repo) => {
                   if (!repoSearch.trim()) return true;
                   const q = repoSearch.toLowerCase();
@@ -356,39 +484,66 @@ export default function ConnectPage() {
             <Upload size={20} />
             Upload Files
           </CardTitle>
-          <CardDescription>Drag and drop your project files directly</CardDescription>
+          <CardDescription>Drag and drop your project files or folders directly</CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Hidden inputs */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            onChange={(e) => { handleFileInput(e.target.files); e.target.value = ""; }}
+            className="hidden"
+            accept=".ts,.tsx,.js,.jsx,.py,.rb,.go,.rs,.java,.html,.css,.json,.yaml,.yml,.md,.sql,.sh"
+          />
+          <input
+            ref={folderInputRef}
+            type="file"
+            // @ts-expect-error webkitdirectory is a non-standard attribute not in React types
+            webkitdirectory=""
+            onChange={(e) => { handleFolderInput(e.target.files); e.target.value = ""; }}
+            className="hidden"
+          />
+
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              handleUploadFiles(e.dataTransfer.files);
-            }}
-            className={`relative p-10 text-center border-2 border-dashed rounded-xl transition-all cursor-pointer ${
+            onDrop={handleUploadDrop}
+            className={`p-10 text-center border-2 border-dashed rounded-xl transition-all ${
               dragOver
                 ? "border-primary bg-primary/5"
                 : "border-foreground/20 hover:border-foreground/40 hover:bg-surface/50"
             }`}
           >
-            <input
-              type="file"
-              multiple
-              onChange={(e) => handleUploadFiles(e.target.files)}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              accept=".ts,.tsx,.js,.jsx,.py,.rb,.go,.rs,.java,.html,.css,.json,.yaml,.yml,.md,.sql,.sh"
-            />
             <div className="inline-flex items-center justify-center w-14 h-14 bg-foreground/5 rounded-2xl mb-4">
               <Upload size={28} className="text-muted" />
             </div>
             <p className="font-bold mb-1">
-              Drop files here or click to browse
+              Drop files or folders here
             </p>
-            <p className="text-xs text-muted font-medium">
+            <p className="text-xs text-muted font-medium mb-4">
               .ts, .tsx, .js, .py, .go, .java, .html, .css, .json, and more
             </p>
+            <div className="flex items-center justify-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                className="gap-2 cursor-pointer"
+              >
+                <FileCode size={14} />
+                Browse Files
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => folderInputRef.current?.click()}
+                className="gap-2 cursor-pointer"
+              >
+                <FolderOpen size={14} />
+                Browse Folder
+              </Button>
+            </div>
           </div>
 
           {/* Selected files */}
@@ -404,14 +559,14 @@ export default function ConnectPage() {
                 </Button>
               </div>
               <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
-                {uploadFiles.map((file, i) => (
+                {uploadFiles.map(({ file, path }, i) => (
                   <div
-                    key={`${file.name}-${i}`}
+                    key={`${path}-${i}`}
                     className="flex items-center justify-between p-2.5 bg-background rounded-xl border border-foreground/10"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <FileCode size={12} className="shrink-0 text-muted" />
-                      <span className="text-xs font-medium truncate">{file.name}</span>
+                      <span className="text-xs font-medium truncate">{path}</span>
                       <Badge variant="default" className="text-[10px]">{(file.size / 1024).toFixed(1)} KB</Badge>
                     </div>
                     <button onClick={() => removeUploadFile(i)} className="cursor-pointer p-1.5 hover:bg-primary/10 rounded-lg transition-colors">
