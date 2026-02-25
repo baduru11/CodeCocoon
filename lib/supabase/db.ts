@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RepoFile } from "@/types/github";
 import type { AnalysisResult } from "@/types/analysis";
-import type { LearningPath } from "@/types/learning";
+import type { LearningPath, LearningPathV1 } from "@/types/learning";
+import { isV2LearningPath } from "@/types/learning";
 import type { Exercise } from "@/types/exercise";
 import type { Project } from "@/types/database";
 
@@ -120,10 +121,11 @@ export async function saveLearningPath(
   skillLevel: string,
   path: LearningPath
 ): Promise<void> {
+  const isV2 = isV2LearningPath(path);
   const { error } = await supabase.from("learning_paths").insert({
     project_id: projectId,
-    title: path.title,
-    description: path.description,
+    title: isV2 ? `Learning Path for ${path.role.displayName}` : path.title,
+    description: isV2 ? path.gapAnalysis.summary : path.description,
     skill_level: skillLevel,
     modules: path.modules,
   });
@@ -302,9 +304,9 @@ export async function getProjectWithAllData(
   return {
     project,
     analysis: analysisResult.data ? dbRowToAnalysis(analysisResult.data as Record<string, unknown>) : null,
-    learningPaths: (pathsResult.data ?? []).map((row) => {
+    learningPaths: (pathsResult.data ?? []).map((row): LearningPathV1 => {
       const r = row as Record<string, unknown>;
-      const modules = (r.modules as LearningPath["modules"]) ?? [];
+      const modules = (r.modules as LearningPathV1["modules"]) ?? [];
       const totalLessons = modules.reduce((sum, m) => sum + (m.lessons?.length ?? 0), 0);
       return {
         id: String(r.id ?? ""),

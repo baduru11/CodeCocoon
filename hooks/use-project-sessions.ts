@@ -6,7 +6,7 @@ import {
   getAllSessions,
   getActiveSessionId,
   setActiveSessionId as setActiveId,
-  getSession,
+
   deleteSession as removeSessionFromStorage,
   getFavoriteIds,
   toggleFavorite as toggleFav,
@@ -20,6 +20,7 @@ export function useProjectSessions() {
 
   // Hydrate from localStorage on mount
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrating from localStorage on mount
     setSessions(getAllSessions());
     setActiveSessionIdState(getActiveSessionId());
     setFavorites(getFavoriteIds());

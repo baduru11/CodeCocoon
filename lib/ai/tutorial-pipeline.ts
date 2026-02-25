@@ -6,7 +6,7 @@ import type {
   TutorialChapter,
   TutorialData,
 } from "@/types/tutorial";
-import { GEMINI_MODELS } from "@/lib/constants";
+import { AI_MODELS } from "@/lib/constants";
 import { PROMPTS } from "./prompts";
 import { extractYaml, parseIndex } from "./yaml-parser";
 
@@ -142,7 +142,7 @@ export async function runTutorialPipeline(
 
   const abstractions = await retryOnBadOutput(async () => {
     const result = await ai.generate({
-      model: GEMINI_MODELS.fast,
+      model: AI_MODELS.fast,
       messages: [
         {
           role: "user",
@@ -162,7 +162,7 @@ export async function runTutorialPipeline(
 
   const relationships = await retryOnBadOutput(async () => {
     const result = await ai.generate({
-      model: GEMINI_MODELS.fast,
+      model: AI_MODELS.fast,
       messages: [
         {
           role: "user",
@@ -185,7 +185,7 @@ export async function runTutorialPipeline(
 
   const chapterOrder = await retryOnBadOutput(async () => {
     const result = await ai.generate({
-      model: GEMINI_MODELS.fast,
+      model: AI_MODELS.fast,
       messages: [
         {
           role: "user",
@@ -237,7 +237,7 @@ export async function runTutorialPipeline(
     send("status", `Writing chapter ${chapterNum} of ${chapterOrder.length}...`);
 
     const chapterContent = await ai.generate({
-      model: GEMINI_MODELS.deep,
+      model: AI_MODELS.deep,
       messages: [
         {
           role: "user",

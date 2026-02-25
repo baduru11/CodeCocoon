@@ -1,4 +1,5 @@
 import type { RepoFile } from "@/types/github";
+import type { RoleProfile } from "@/types/learning";
 import type { TutorialAbstraction, TutorialRelationships } from "@/types/tutorial";
 
 const MAX_LINES_PER_FILE = 150;
@@ -637,5 +638,207 @@ ${prevChapter ? `- Begin with a brief transition from the previous chapter [${pr
 - Heavily use analogies and examples to explain technical concepts
 ${nextChapter ? `- End with a conclusion and transition to the next chapter [${nextChapter.name}](${nextChapter.filename}) using a markdown link` : "- End with a conclusion summarizing what was covered"}
 - Tone: welcoming, easy for newcomers, like explaining to a friend`;
+  },
+
+  // ─── Learning Path Pipeline Prompts ─────────────────────────────────
+
+  extractRoleConcepts(
+    role: RoleProfile,
+    skillLevel: string,
+    techStack: string[],
+    tutorialAbstractions?: TutorialAbstraction[],
+    tutorialRelationships?: TutorialRelationships,
+    codeExamples?: string
+  ): string {
+    const roleDesc = role.custom || `${role.displayName}: ${role.preset ? "focusing on their area of expertise" : "general understanding"}`;
+
+    const integratedContext = tutorialAbstractions
+      ? `TUTORIAL ABSTRACTIONS (core concepts already identified from this codebase):
+${tutorialAbstractions.map((a, i) => `${i}. ${a.name}: ${a.description}`).join("\n")}
+
+RELATIONSHIPS BETWEEN ABSTRACTIONS:
+${tutorialRelationships?.details.map((r) => `- ${tutorialAbstractions[r.from]?.name} → ${tutorialAbstractions[r.to]?.name}: ${r.label}`).join("\n") ?? "None available"}
+
+PROJECT SUMMARY:
+${tutorialRelationships?.summary ?? "Not available"}`
+      : `CODE FROM THE PROJECT (for context):
+${codeExamples ?? "Not available"}`;
+
+    return `You are an expert developer onboarding specialist. Your job is to identify exactly what concepts someone in a specific ROLE needs to learn about a codebase.
+
+ROLE: ${roleDesc}
+SKILL LEVEL: ${skillLevel}
+TECH STACK: ${techStack.join(", ")}
+
+${integratedContext}
+
+Based on this role and codebase, identify 10-20 concepts this person needs to understand. For each concept:
+
+1. "id": A kebab-case unique identifier (e.g., "react-hooks", "api-routes")
+2. "name": A clear display name (e.g., "React Hooks", "API Route Handlers")
+3. "category": One of: "language", "framework", "pattern", "tooling", "architecture", "library"
+4. "relevanceScore": 0.0 to 1.0 — how important this concept is for THIS ROLE specifically. A frontend dev gets high scores for UI concepts, low for database internals.
+5. "moduleGroup": A grouping label (e.g., "React Fundamentals", "State Management", "API Layer"). Group related concepts together.
+6. "fileReferences": Array of file paths from the codebase where this concept appears (use paths from the context above).
+
+IMPORTANT:
+- Prioritize concepts that matter for the specified ROLE, not just all technologies in the stack
+- A Product Manager gets architecture/data flow concepts, not implementation details
+- A Frontend Developer gets component/state/styling concepts, not server infrastructure
+- Order by relevance score (highest first)
+- Each concept should be specific enough to learn in 15-60 minutes, not a whole topic area
+
+Return as JSON: { "concepts": [...] }`;
+  },
+
+  buildDependencyGraph(
+    concepts: { id: string; name: string; category: string }[],
+    skillLevel: string,
+    analysisContext?: string
+  ): string {
+    const conceptList = concepts
+      .map((c, i) => `${i}. [${c.id}] ${c.name} (${c.category})`)
+      .join("\n");
+
+    return `You are an expert curriculum designer building a skill dependency graph.
+
+SKILL LEVEL: ${skillLevel}
+${analysisContext ? `PROJECT CONTEXT:\n${analysisContext}\n` : ""}
+CONCEPTS TO MAP:
+${conceptList}
+
+For each concept, determine:
+
+1. "prerequisites": Array of concept IDs that must be understood BEFORE this concept. Use the exact "id" strings from the list above. A concept with no prerequisites is a starting point.
+2. "difficulty": 1 to 5 rating (1=trivial, 5=very complex) relative to the student's skill level (${skillLevel}).
+3. "estimatedMinutes": How long a ${skillLevel}-level student would need to understand this concept (15-120 minutes).
+
+Also provide a GAP ANALYSIS:
+- "likelyKnown": Array of concept names a ${skillLevel}-level student likely already knows (based on typical knowledge at that level)
+- "focusAreas": Array of concept names that should be prioritized (new, important, or commonly misunderstood)
+- "summary": A 2-3 sentence personalized message like "Based on your intermediate skill level, you likely already understand basic React components and JSX. Focus on server components and data fetching patterns which are specific to this codebase's architecture."
+
+IMPORTANT:
+- Prerequisites must form a valid DAG (no circular dependencies)
+- Every concept must be reachable (no orphaned nodes unless they're a starting point)
+- Difficulty should reflect the student's CURRENT level, not absolute difficulty
+- A beginner finds "React Hooks" harder than an intermediate student does
+
+Return as JSON:
+{
+  "graph": [
+    { "id": "concept-id", "prerequisites": ["other-id"], "difficulty": 3, "estimatedMinutes": 30 },
+    ...
+  ],
+  "gapAnalysis": {
+    "likelyKnown": ["concept name", ...],
+    "focusAreas": ["concept name", ...],
+    "summary": "Personalized gap analysis message."
+  }
+}`;
+  },
+
+  generateLessonContent(
+    concepts: { id: string; name: string; category: string; fileRefs: string[] }[],
+    files: RepoFile[],
+    skillLevel: string
+  ): string {
+    // Build file context from referenced files
+    const referencedPaths = new Set(concepts.flatMap((c) => c.fileRefs));
+    const fileContext = files
+      .filter((f) => referencedPaths.has(f.path))
+      .slice(0, 15)
+      .map((f) => {
+        const lines = f.content.split("\n");
+        const truncated = lines.length > 80
+          ? lines.slice(0, 80).join("\n") + `\n... (${lines.length - 80} more lines)`
+          : f.content;
+        return `--- ${f.path} ---\n${truncated}`;
+      })
+      .join("\n\n");
+
+    const conceptList = concepts
+      .map((c) => `- [${c.id}] ${c.name} (${c.category}) — referenced files: ${c.fileRefs.join(", ") || "none"}`)
+      .join("\n");
+
+    return `You are an expert developer educator creating lesson content. You are NOT writing full tutorials — you are creating concise, insightful explanations that help someone understand concepts enough to know what they need to learn more about.
+
+SKILL LEVEL: ${skillLevel}
+
+CONCEPTS TO EXPLAIN:
+${conceptList}
+
+RELEVANT CODE FROM THEIR PROJECT:
+${fileContext}
+
+For EACH concept, generate:
+
+1. "id": The concept ID (must match exactly)
+2. "explanation": 100-200 words explaining what this concept is and why it matters. Include a simple analogy. Write at the ${skillLevel} level — don't over-explain basics for advanced students, don't use jargon for beginners.
+3. "inYourCodebase": 2-3 sentences pointing to SPECIFIC files and patterns where this concept appears in THEIR project. Use actual file paths from the code context. Example: "In your project, React hooks are used extensively in \`hooks/use-processing.ts\` where \`useState\` manages the processing pipeline state and \`useCallback\` memoizes the event handlers."
+4. "keyTakeaways": Array of 2-3 bullet points — the most important things to remember about this concept.
+5. "tags": Array of keyword strings for resource matching (e.g., ["react-hooks", "useState", "state-management"]). Include technology-specific and concept-specific tags.
+
+IMPORTANT:
+- Be substantive but NOT exhaustive — enough to understand, not enough to master
+- Always reference THEIR code, not generic examples
+- Analogies should be simple and relatable
+- Key takeaways should be actionable, not obvious
+- This is the "doctor's diagnosis" — thorough enough that they understand their situation, but they go to a specialist (external learning platform) for the full treatment
+
+Return as JSON: { "lessons": [{ "id": "...", "explanation": "...", "inYourCodebase": "...", "keyTakeaways": [...], "tags": [...] }, ...] }`;
+  },
+
+  curateLearningResources(
+    concepts: { id: string; name: string; tags: string[]; difficulty: number }[],
+    skillLevel: string
+  ): string {
+    const conceptList = concepts
+      .map((c) => `- [${c.id}] ${c.name} (difficulty: ${c.difficulty}/5, tags: ${c.tags.join(", ")})`)
+      .join("\n");
+
+    return `You are an expert learning resource curator for developers. Your job is to recommend the BEST external learning resources for specific programming concepts.
+
+SKILL LEVEL: ${skillLevel}
+
+CONCEPTS NEEDING RESOURCES:
+${conceptList}
+
+For EACH concept, recommend 3-5 resources. For each resource:
+
+1. "platform": The platform name (e.g., "MDN Web Docs", "React Official Docs", "freeCodeCamp", "Coursera", "Udemy", "Frontend Masters", "YouTube", "Pluralsight", "Codecademy", "Egghead.io", "Kent C. Dodds Blog", "CSS-Tricks", "Smashing Magazine")
+2. "title": The specific resource title (e.g., "Using the State Hook – React Docs", "JavaScript: Understanding the Weird Parts")
+3. "url": The URL — ONLY use URLs you are confident exist. Prefer well-known URL patterns:
+   - https://react.dev/learn/... or https://react.dev/reference/...
+   - https://developer.mozilla.org/en-US/docs/Web/...
+   - https://nextjs.org/docs/...
+   - https://www.typescriptlang.org/docs/...
+   - https://tailwindcss.com/docs/...
+   - https://www.freecodecamp.org/news/...
+   - https://docs.github.com/...
+   If you're not sure a specific URL exists, use the platform's main docs page instead.
+4. "type": One of "course", "video", "article", "interactive", "documentation"
+5. "intent": One of:
+   - "start_here" — Free, beginner-friendly entry point for this concept
+   - "go_deeper" — Comprehensive paid content for mastery
+   - "quick_reference" — Docs and cheat sheets for ongoing use
+6. "priceTier": One of "free", "paid", "subscription"
+   - "free" — No cost (freeCodeCamp, MDN, official docs, most YouTube)
+   - "paid" — One-time purchase (Udemy courses, books)
+   - "subscription" — Monthly/yearly fee (Frontend Masters, Pluralsight, Coursera Plus)
+7. "difficulty": "beginner", "intermediate", or "advanced" — match to the content's actual level
+8. "estimatedDuration": Human-readable (e.g., "15 min read", "2 hour course", "4 week course", "5 min video")
+9. "whyThisResource": One sentence explaining why this specific resource is good for this concept. Reference the student's context.
+
+IMPORTANT:
+- Every concept MUST have at least one "start_here" (free) resource
+- Mix of free and paid — don't just list all paid courses
+- "quick_reference" should be official docs when available
+- URLs must be from well-known platforms with predictable URL patterns
+- Match resource difficulty to the student's skill level
+- Resources should be specifically relevant to the concept, not general "learn to code" content
+- Price transparency is a trust feature — be accurate about what's free vs paid
+
+Return as JSON: { "resources": { "concept-id": [{ "platform": "...", ... }, ...], ... } }`;
   },
 };

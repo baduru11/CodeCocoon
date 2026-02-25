@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useProcessing } from "@/hooks/use-processing";
@@ -23,7 +23,7 @@ export default function ProcessingPage() {
     status, currentStep, steps, results, error, process: startProcessing,
     progressPercent,
   } = useProcessing();
-  const [started, setStarted] = useState(false);
+  const startedRef = useRef(false);
 
   // Redirect if no config
   useEffect(() => {
@@ -32,13 +32,13 @@ export default function ProcessingPage() {
     }
   }, [isLoaded, processConfig, router]);
 
-  // Auto-start processing on mount
+  // Auto-start processing on mount (ref guard prevents StrictMode double-fire)
   useEffect(() => {
-    if (isLoaded && processConfig && !started && status === "idle") {
-      setStarted(true);
+    if (isLoaded && processConfig && !startedRef.current && status === "idle") {
+      startedRef.current = true;
       startProcessing(processConfig);
     }
-  }, [isLoaded, processConfig, started, status, startProcessing]);
+  }, [isLoaded, processConfig, status, startProcessing]);
 
   // Save results as ProjectSession on complete — uses ref to prevent double-save
   const savedRef = useRef(false);
@@ -53,7 +53,9 @@ export default function ProcessingPage() {
       const session: ProjectSession = {
         id: crypto.randomUUID(),
         repoName: processConfig.repoName,
-        repoUrl: `https://github.com/${processConfig.owner}/${processConfig.repo}`,
+        repoUrl: processConfig.owner === "_upload"
+          ? ""
+          : `https://github.com/${processConfig.owner}/${processConfig.repo}`,
         analyzedAt: new Date().toISOString(),
         skillLevel: processConfig.skillLevel || "beginner",
         projectData: results.projectData,
@@ -84,17 +86,10 @@ export default function ProcessingPage() {
   const handleRetry = () => {
     if (processConfig) {
       savedRef.current = false;
-      setStarted(false);
-    }
-  };
-
-  // Reset started flag on retry (when started becomes false again)
-  useEffect(() => {
-    if (!started && processConfig && status === "error") {
-      setStarted(true);
+      startedRef.current = true; // keep guard active
       startProcessing(processConfig);
     }
-  }, [started, processConfig, status, startProcessing]);
+  };
 
   if (!isLoaded || !processConfig) {
     return (

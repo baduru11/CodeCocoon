@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { AnalysisResult } from "@/types/analysis";
 import type { LearningPath } from "@/types/learning";
 import type { Exercise } from "@/types/exercise";
@@ -39,6 +39,14 @@ export function useProcessing() {
   const [results, setResults] = useState<ProcessingResults>({});
   const [error, setError] = useState("");
   const completedRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Abort in-flight pipeline on unmount (prevents StrictMode double-run)
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   const markStepDone = useCallback((key: string) => {
     setSteps((prev) =>
@@ -57,6 +65,11 @@ export function useProcessing() {
   }, []);
 
   const process = useCallback(async (config: ProcessConfig) => {
+    // Abort any in-flight pipeline before starting a new one
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setStatus("processing");
     setCurrentStep("Initializing...");
     setResults({});
@@ -68,6 +81,7 @@ export function useProcessing() {
       const res = await fetch("/api/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           owner: config.owner,
           repo: config.repo,
@@ -77,6 +91,9 @@ export function useProcessing() {
             size: f.size,
           })),
           skillLevel: config.skillLevel,
+          // For uploads: send file contents directly so server skips GitHub fetch
+          uploadedFiles: config.uploadedFiles,
+          role: config.role,
         }),
       });
 
@@ -216,8 +233,19 @@ export function useProcessing() {
                 },
               }));
               break;
+            case "learning_concepts":
+              markStepDone("learning_concepts");
+              break;
+            case "learning_graph":
+              markStepDone("learning_graph");
+              break;
+            case "learning_lessons":
+              markStepDone("learning_lessons");
+              break;
+            case "learning_resources":
+              markStepDone("learning_resources");
+              break;
             case "learning_path":
-              markStepDone("learning_path");
               setResults((prev) => ({
                 ...prev,
                 learningPath: event.data as LearningPath,
@@ -288,6 +316,8 @@ export function useProcessing() {
         setError("Processing stream ended unexpectedly. Please try again.");
       }
     } catch (err) {
+      // Ignore abort errors (from StrictMode cleanup or new pipeline replacing old one)
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setStatus("error");
       setError(err instanceof Error ? err.message : "Processing failed");
     }

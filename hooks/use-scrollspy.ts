@@ -54,6 +54,7 @@ export function useScrollspy(sectionIds: string[], offset = 80) {
     return () => {
       observerRef.current?.disconnect();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- activeId intentionally excluded to avoid re-observing on every scroll
   }, [sectionIds, offset]);
 
   return activeId;

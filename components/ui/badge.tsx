@@ -8,15 +8,15 @@ function Badge({ className, variant = "default", ...props }: BadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center px-2.5 py-0.5 text-xs font-bold border rounded-md",
+        "inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-widest border-2 rounded-sm",
         {
-          "bg-foreground/5 text-foreground border-foreground/20": variant === "default",
-          "bg-primary/10 text-primary border-primary/30": variant === "primary",
-          "bg-secondary/10 text-secondary border-secondary/30": variant === "secondary",
-          "bg-accent-green/10 text-accent-green border-accent-green/30": variant === "success",
-          "bg-accent-yellow/10 text-accent-yellow border-accent-yellow/30": variant === "warning",
-          "bg-red-500/10 text-red-500 border-red-500/30": variant === "danger",
-          "bg-transparent text-foreground border-foreground/20": variant === "outline",
+          "bg-foreground text-surface border-foreground": variant === "default",
+          "bg-accent-red text-surface border-accent-red": variant === "primary",
+          "bg-surface text-foreground border-foreground": variant === "secondary",
+          "bg-[#2E4036] text-[#F2F0E9] border-[#2E4036]": variant === "success",
+          "bg-[#C9A84C] text-[#0D0D12] border-[#C9A84C]": variant === "warning",
+          "bg-accent-red text-surface border-accent-red": variant === "danger",
+          "bg-transparent text-foreground border-foreground": variant === "outline",
         },
         className
       )}

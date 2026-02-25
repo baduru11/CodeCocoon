@@ -90,7 +90,16 @@ export const MAX_FILE_SIZE_BYTES = 100_000; // 100KB per file
 export const MAX_TOTAL_CONTENT_BYTES = 500_000; // 500KB total
 export const FILE_SIZE_WARNING_BYTES = 50_000; // 50KB - files above this are highlighted
 
-// Gemini model names
+// AI model identifiers (provider-agnostic labels used by pipelines)
+// The actual model name is resolved by each provider:
+//   - Gemini: fast → gemini-2.0-flash, deep → gemini-2.5-flash
+//   - DeepSeek: both map to deepseek-chat (single model)
+export const AI_MODELS = {
+  fast: "fast",
+  deep: "deep",
+} as const;
+
+// Legacy alias — existing Gemini-specific code still references this
 export const GEMINI_MODELS = {
   fast: "gemini-2.0-flash",
   deep: "gemini-2.5-flash",
@@ -149,6 +158,9 @@ export const PROCESSING_STEPS = [
   { key: "tutorial_relationships", label: "Mapping relationships" },
   { key: "tutorial_order", label: "Planning chapter order" },
   { key: "tutorial_chapters", label: "Writing tutorial chapters" },
-  { key: "learning_path", label: "Generating learning path" },
+  { key: "learning_concepts", label: "Extracting role-based concepts" },
+  { key: "learning_graph", label: "Building skill dependency graph" },
+  { key: "learning_lessons", label: "Generating lesson content" },
+  { key: "learning_resources", label: "Curating learning resources" },
   { key: "exercises", label: "Creating exercises" },
 ] as const;

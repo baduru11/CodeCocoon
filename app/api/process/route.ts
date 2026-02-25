@@ -1,11 +1,13 @@
-import { GeminiProvider, GeminiSchemas } from "@/lib/ai/gemini";
+import { createAIProvider } from "@/lib/ai/create-provider";
 import { PROMPTS } from "@/lib/ai/prompts";
-import { GEMINI_MODELS } from "@/lib/constants";
+import { AI_MODELS } from "@/lib/constants";
 import { fetchContentForFiles } from "@/lib/github/fetcher";
 import { getLanguageStats } from "@/lib/github/filter";
 import { isValidGitHubName } from "@/lib/github/parser";
 import { createClient } from "@/lib/supabase/server";
 import { runTutorialPipeline } from "@/lib/ai/tutorial-pipeline";
+import { runLearningPipeline } from "@/lib/ai/learning-pipeline";
+import type { RoleProfile } from "@/types/learning";
 import type { RepoFile } from "@/types/github";
 
 interface ProcessRequest {
@@ -13,44 +15,51 @@ interface ProcessRequest {
   repo: string;
   selectedFiles: { path: string; sha: string; size: number }[];
   skillLevel: string;
+  /** Pre-uploaded file contents — when present, skip GitHub fetch */
+  uploadedFiles?: RepoFile[];
+  role?: RoleProfile;
 }
 
 export async function POST(request: Request) {
   try {
-    const { owner, repo, selectedFiles, skillLevel } =
+    const { owner, repo, selectedFiles, skillLevel, uploadedFiles, role } =
       (await request.json()) as ProcessRequest;
 
-    if (!owner || !repo || !selectedFiles?.length) {
+    const isUpload = !!uploadedFiles?.length;
+
+    if (!isUpload && (!owner || !repo || !selectedFiles?.length)) {
       return new Response(
         JSON.stringify({ error: "Missing required fields: owner, repo, selectedFiles" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    if (!isValidGitHubName(owner) || !isValidGitHubName(repo)) {
+    if (!isUpload && (!isValidGitHubName(owner) || !isValidGitHubName(repo))) {
       return new Response(
         JSON.stringify({ error: "Invalid owner or repo name" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    // Get auth token from Supabase session
+    // Get auth token from Supabase session (not needed for uploads)
     let token: string | undefined;
-    try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      if (supabaseUrl && supabaseKey && !supabaseUrl.includes("placeholder")) {
-        const supabase = await createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.provider_token && session.provider_token.trim()) {
-          token = session.provider_token;
+    if (!isUpload) {
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (supabaseUrl && supabaseKey && !supabaseUrl.includes("placeholder")) {
+          const supabase = await createClient();
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.provider_token && session.provider_token.trim()) {
+            token = session.provider_token;
+          }
         }
+      } catch {
+        // Anonymous access — fetcher.ts will use unauthenticated Octokit
       }
-    } catch {
-      // Anonymous access — fetcher.ts will use unauthenticated Octokit
     }
 
-    const ai = new GeminiProvider();
+    const ai = createAIProvider();
     const encoder = new TextEncoder();
     const signal = request.signal;
 
@@ -67,20 +76,21 @@ export async function POST(request: Request) {
         };
 
         try {
-          // Step 1: Fetch file contents
-          send("status", "Fetching file contents...");
+          // Step 1: Fetch file contents (or use uploaded files)
+          send("status", isUpload ? "Preparing uploaded files..." : "Fetching file contents...");
           send("step_start", "files_fetched");
 
-          const files: RepoFile[] = await fetchContentForFiles(
-            owner,
-            repo,
-            selectedFiles,
-            { token }
-          );
+          const files: RepoFile[] = isUpload
+            ? uploadedFiles!
+            : await fetchContentForFiles(owner, repo, selectedFiles, { token });
+
+          const projectName = isUpload
+            ? (repo || "Uploaded Project")
+            : `${owner}/${repo}`;
 
           const projectData = {
             files,
-            repoName: `${owner}/${repo}`,
+            repoName: projectName,
             fileCount: files.length,
             languages: getLanguageStats(
               files.map((f) => ({ path: f.path, size: f.size }))
@@ -92,40 +102,17 @@ export async function POST(request: Request) {
 
           checkAborted();
 
-          // Steps 2+: Analysis (parallel) + Tutorial pipeline (sequential) run concurrently
+          // ── All AI calls run sequentially to stay within Gemini rate limits ──
+
+          // Step 2: Tech stack analysis
           send("step_start", "tech_stack");
-          send("step_start", "architecture");
-          send("step_start", "key_files");
-          send("status", "Analyzing codebase...");
+          send("status", "Analyzing tech stack...");
 
-          const projectName = `${owner}/${repo}`;
-
-          // Analysis + tutorial pipeline run concurrently; the Gemini
-          // throttle in lib/ai/gemini.ts handles per-model rate limiting.
-          const [analysisResults, tutorialData] = await Promise.all([
-            Promise.all([
-              ai.generate({
-                model: GEMINI_MODELS.fast,
-                messages: [{ role: "user", content: PROMPTS.analyzeTechStack(files) }],
-                responseFormat: "json",
-                responseSchema: GeminiSchemas.techStack,
-              }),
-              ai.generate({
-                model: GEMINI_MODELS.fast,
-                messages: [{ role: "user", content: PROMPTS.analyzeArchitecture(files) }],
-                responseFormat: "json",
-                responseSchema: GeminiSchemas.architecture,
-              }),
-              ai.generate({
-                model: GEMINI_MODELS.fast,
-                messages: [{ role: "user", content: PROMPTS.identifyKeyFiles(files) }],
-                responseFormat: "json",
-              }),
-            ]),
-            runTutorialPipeline(ai, files, projectName, send, checkAborted),
-          ]);
-
-          const [techStackResult, archResult, keyFilesResult] = analysisResults;
+          const techStackResult = await ai.generate({
+            model: AI_MODELS.fast,
+            messages: [{ role: "user", content: PROMPTS.analyzeTechStack(files) }],
+            responseFormat: "json",
+          });
 
           let techStack: { languages?: string[]; frameworks?: string[] };
           try {
@@ -134,6 +121,17 @@ export async function POST(request: Request) {
             techStack = { languages: [], frameworks: [] };
           }
           send("tech_stack", techStack);
+          checkAborted();
+
+          // Step 3: Architecture analysis
+          send("step_start", "architecture");
+          send("status", "Analyzing architecture...");
+
+          const archResult = await ai.generate({
+            model: AI_MODELS.fast,
+            messages: [{ role: "user", content: PROMPTS.analyzeArchitecture(files) }],
+            responseFormat: "json",
+          });
 
           let architecture: unknown;
           try {
@@ -142,6 +140,17 @@ export async function POST(request: Request) {
             architecture = { pattern: "Unknown", description: "", layers: [], entryPoints: [] };
           }
           send("architecture", architecture);
+          checkAborted();
+
+          // Step 4: Key files
+          send("step_start", "key_files");
+          send("status", "Identifying key files...");
+
+          const keyFilesResult = await ai.generate({
+            model: AI_MODELS.fast,
+            messages: [{ role: "user", content: PROMPTS.identifyKeyFiles(files) }],
+            responseFormat: "json",
+          });
 
           let keyFiles: unknown;
           try {
@@ -150,39 +159,25 @@ export async function POST(request: Request) {
             keyFiles = [];
           }
           send("key_files", keyFiles);
+          checkAborted();
+
+          // Step 5: Tutorial pipeline (sequential internally)
+          send("status", "Generating tutorial content...");
+          const tutorialData = await runTutorialPipeline(ai, files, projectName, send, checkAborted);
 
           // Backward-compat: send summary string extracted from tutorial
           send("summary", tutorialData.relationships.summary);
-
           checkAborted();
 
-          // Learning path + exercises in parallel (both use deep model)
-          send("step_start", "learning_path");
+          // Step 6: Learning path pipeline (sequential internally)
           send("step_start", "exercises");
-          send("status", "Generating learning path & exercises...");
+          send("status", "Generating learning path...");
 
-          const techStackList = [
-            ...(techStack.languages || []),
-            ...(techStack.frameworks || []),
-          ];
-          const codeExamples = files
-            .slice(0, 3)
-            .map((f) => {
-              const lines = f.content.split("\n");
-              const truncated = lines.length > 150
-                ? lines.slice(0, 150).join("\n") + "\n... (truncated)"
-                : f.content;
-              return `--- ${f.path} ---\n${truncated}`;
-            })
-            .join("\n\n");
-
-          const analysisContext = `Summary: ${tutorialData.relationships.summary}\nArchitecture: ${JSON.stringify(architecture)}`;
-          const learningPathPrompt = PROMPTS.generateLearningPathWithContext(
-            techStackList,
-            skillLevel || "beginner",
-            codeExamples,
-            analysisContext
-          );
+          const defaultRole: RoleProfile = {
+            preset: "fullstack_dev",
+            custom: null,
+            displayName: "Full-Stack Developer",
+          };
 
           const exerciseTypes = [
             "error_injection",
@@ -194,40 +189,40 @@ export async function POST(request: Request) {
             "error_message",
           ];
 
-          const [learningPathResult, exercisesResult] = await Promise.all([
-            ai.generate({
-              model: GEMINI_MODELS.deep,
-              messages: [{ role: "user", content: learningPathPrompt }],
-              responseFormat: "json",
-              responseSchema: GeminiSchemas.learningPath,
-              maxTokens: 32768,
-            }),
-            ai.generate({
-              model: GEMINI_MODELS.deep,
-              messages: [
-                {
-                  role: "user",
-                  content: PROMPTS.generateExercises(
-                    files,
-                    skillLevel || "beginner",
-                    exerciseTypes
-                  ),
-                },
-              ],
-              responseFormat: "json",
-              responseSchema: GeminiSchemas.exercises,
-              maxTokens: 32768,
-            }),
-          ]);
+          // Learning path pipeline first (4 sequential steps internally)
+          const learningPath = await runLearningPipeline(
+            ai,
+            files,
+            projectName,
+            skillLevel || "beginner",
+            role || defaultRole,
+            tutorialData,
+            send,
+            checkAborted
+          );
 
-          let learningPath: unknown;
-          try {
-            learningPath = JSON.parse(learningPathResult.content);
-          } catch (parseErr) {
-            console.error("Failed to parse learning path JSON:", parseErr, "Raw content length:", learningPathResult.content.length);
-            learningPath = { title: "", description: "", modules: [] };
-          }
+          // Send the final assembled learning path
           send("learning_path", learningPath);
+
+          checkAborted();
+
+          // Exercises run after learning pipeline to avoid deep model contention
+          send("status", "Generating exercises...");
+          const exercisesResult = await ai.generate({
+            model: AI_MODELS.deep,
+            messages: [
+              {
+                role: "user",
+                content: PROMPTS.generateExercises(
+                  files,
+                  skillLevel || "beginner",
+                  exerciseTypes
+                ),
+              },
+            ],
+            responseFormat: "json",
+            maxTokens: 32768,
+          });
 
           let exercises: unknown;
           try {

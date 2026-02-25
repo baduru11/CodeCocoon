@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { RepoFile } from "@/types/github";
+import type { RepoFile, TreePreviewFile, FetchTreeResult, FilterSummary } from "@/types/github";
 import { getLanguageFromExtension, getFileExtension } from "@/lib/utils";
 import { BINARY_EXTENSIONS, MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 
@@ -10,6 +10,7 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const files: RepoFile[] = [];
+    const treeFiles: TreePreviewFile[] = [];
     const languages: Record<string, number> = {};
     let totalSize = 0;
 
@@ -38,27 +39,57 @@ export async function POST(request: Request) {
 
       const content = await entry.text();
       const language = getLanguageFromExtension(ext);
+      const path = entry.name;
 
-      // Get relative path from webkitRelativePath or name
-      const path = (entry as File & { webkitRelativePath?: string }).webkitRelativePath || entry.name;
+      files.push({ path, content, language, size: entry.size });
 
-      files.push({
+      treeFiles.push({
         path,
-        content,
-        language,
+        sha: "",
         size: entry.size,
+        language,
+        excluded: false,
       });
 
       languages[language] = (languages[language] || 0) + 1;
       totalSize += entry.size;
     }
 
-    return NextResponse.json({
-      files,
-      repoName: "Uploaded Project",
-      fileCount: files.length,
+    const filterSummary: FilterSummary = {
+      totalScanned: entries.length,
+      totalIncluded: files.length,
+      totalExcluded: entries.length - files.length,
+      excludedByReason: {
+        too_large: 0,
+        binary_file: 0,
+        ignored_directory: 0,
+        unsupported_extension: 0,
+        non_file: 0,
+      },
+    };
+
+    // Derive a project name from the common root folder if one exists
+    const firstPath = files[0]?.path || "";
+    const rootFolder = firstPath.includes("/") ? firstPath.split("/")[0] : "";
+    const allShareRoot = rootFolder && files.every((f) => f.path.startsWith(rootFolder + "/"));
+    const repoName = allShareRoot ? rootFolder : "Uploaded Project";
+
+    const treeData: FetchTreeResult = {
+      files: treeFiles,
+      excludedFiles: [],
+      repoName,
+      owner: "_upload",
+      repo: repoName,
+      totalFiles: treeFiles.length,
+      totalExcludedFiles: 0,
+      totalSize: totalSize,
       languages,
-      totalSize,
+      filterSummary,
+    };
+
+    return NextResponse.json({
+      treeData,
+      fileContents: files,
     });
   } catch (error) {
     console.error("Upload error:", error);

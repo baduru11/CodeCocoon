@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { GeminiProvider, GeminiSchemas } from "@/lib/ai/gemini";
+import { createAIProvider } from "@/lib/ai/create-provider";
 import { PROMPTS } from "@/lib/ai/prompts";
-import { GEMINI_MODELS } from "@/lib/constants";
+import { AI_MODELS } from "@/lib/constants";
 import type { RepoFile } from "@/types/github";
 
 export async function POST(request: Request) {
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const ai = new GeminiProvider();
+    const ai = createAIProvider();
     const exerciseTypes = body.types || body.exerciseTypes || [
       "error_injection",
       "code_recreation",
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     ];
 
     const result = await ai.generate({
-      model: GEMINI_MODELS.deep,
+      model: AI_MODELS.deep,
       messages: [
         {
           role: "user",
@@ -40,7 +40,6 @@ export async function POST(request: Request) {
         },
       ],
       responseFormat: "json",
-      responseSchema: GeminiSchemas.exercises,
       maxTokens: 16384,
     });
 

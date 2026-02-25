@@ -1,13 +1,15 @@
 import { Hero } from "@/components/landing/hero";
-import { HowItWorks } from "@/components/landing/how-it-works";
 import { Features } from "@/components/landing/features";
+import { Philosophy } from "@/components/landing/philosophy";
+import { Protocol } from "@/components/landing/protocol";
 
 export default function HomePage() {
   return (
-    <>
+    <div className="bg-background min-h-screen">
       <Hero />
-      <HowItWorks />
       <Features />
-    </>
+      <Philosophy />
+      <Protocol />
+    </div>
   );
 }

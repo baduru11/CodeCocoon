@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, DM_Sans, Geist_Mono } from "next/font/google";
+import { Space_Grotesk, DM_Serif_Display, Space_Mono } from "next/font/google";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -8,22 +8,23 @@ const spaceGrotesk = Space_Grotesk({
   weight: ["400", "500", "600", "700"],
 });
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const dmSerif = DM_Serif_Display({
+  variable: "--font-dm-serif",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400"],
+  style: ["normal", "italic"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const spaceMono = Space_Mono({
+  variable: "--font-space-mono",
   subsets: ["latin"],
+  weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "CodeCocoon — Unwrap Your AI-Generated Code",
-  description:
-    "You built it with AI. Now understand what's inside. Connect your GitHub repo, get your codebase analyzed, and emerge as a real developer.",
-  keywords: ["codecocoon", "vibe coding", "learn to code", "AI coding", "code education", "GitHub"],
+  title: "CodeCocoon | Architectural Protocol",
+  description: "A control room for your codebase. Analyze structures, track origins, rebuild comprehension.",
+  keywords: ["codecocoon", "code analysis", "architecture", "developer tools"],
 };
 
 export default function RootLayout({
@@ -34,8 +35,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${spaceGrotesk.variable} ${dmSans.variable} ${geistMono.variable} antialiased`}
+        className={`${spaceGrotesk.variable} ${dmSerif.variable} ${spaceMono.variable} antialiased`}
       >
+        <svg style={{ display: "none" }}>
+          <filter id="noiseFilter">
+            <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch" />
+          </filter>
+        </svg>
+        <div className="noise-overlay" style={{ filter: "url(#noiseFilter)" }} />
         {children}
       </body>
     </html>

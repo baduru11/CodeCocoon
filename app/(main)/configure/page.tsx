@@ -10,20 +10,30 @@ import { cn, bytesToSize, getLanguageFromExtension, getFileExtension } from "@/l
 import {
   Loader2, FileCode, ArrowRight, AlertTriangle, CheckSquare, Square,
   MinusSquare, Filter, Info, ChevronDown, ChevronRight,
+  Monitor, Server, Layers, Container, BarChart3, ShieldCheck,
 } from "lucide-react";
-import type { FetchTreeResult, ProcessConfig, TreePreviewFile, FilterReason } from "@/types/github";
+import type { RepoFile, FetchTreeResult, ProcessConfig, TreePreviewFile, FilterReason } from "@/types/github";
+import type { RoleProfile, RolePreset } from "@/types/learning";
+import { ROLE_PRESETS } from "@/types/learning";
 import { SKILL_LEVEL_OPTIONS, FILE_SIZE_WARNING_BYTES } from "@/lib/constants";
 
 export default function ConfigurePage() {
   const router = useRouter();
   const { value: treeData, isLoaded } = useLocalStorage<FetchTreeResult | null>("treeData", null);
+  const { value: uploadedFiles, removeValue: clearUploadedFiles } = useLocalStorage<RepoFile[] | null>("uploadedFiles", null);
   const { setValue: setProcessConfig } = useLocalStorage<ProcessConfig | null>("processConfig", null);
 
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [skillLevel, setSkillLevel] = useState<ProcessConfig["skillLevel"] | null>(null);
+  const [selectedRole, setSelectedRole] = useState<RoleProfile | null>(null);
+  const [customRole, setCustomRole] = useState("");
   const [initialized, setInitialized] = useState(false);
   const [showFiltered, setShowFiltered] = useState(false);
   const [filterReasonFilter, setFilterReasonFilter] = useState<FilterReason | "all">("all");
+
+  const ROLE_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+    Monitor, Server, Layers, Container, BarChart3, ShieldCheck,
+  };
 
   // Redirect if no tree data
   useEffect(() => {
@@ -47,6 +57,7 @@ export default function ConfigurePage() {
           initial.add(file.path);
         }
       }
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Initializing file selection from tree data
       setSelectedPaths(initial);
       setInitialized(true);
     }
@@ -160,13 +171,24 @@ export default function ConfigurePage() {
   const handleSubmit = () => {
     if (!treeData || selectedFiles.length === 0 || !skillLevel) return;
 
+    const selectedPathsSet = new Set(selectedFiles.map((f) => f.path));
+
     const config: ProcessConfig = {
       owner: treeData.owner,
       repo: treeData.repo,
       selectedFiles,
       skillLevel,
       repoName: treeData.repoName,
+      // For uploads, include only the selected file contents
+      uploadedFiles: uploadedFiles
+        ? uploadedFiles.filter((f) => selectedPathsSet.has(f.path))
+        : undefined,
+      // Add role - default to fullstack_dev if not selected
+      role: selectedRole || { preset: "fullstack_dev", custom: null, displayName: "Full-Stack Developer" },
     };
+
+    // Clean up uploaded file contents from localStorage after transferring to config
+    if (uploadedFiles) clearUploadedFiles();
 
     setProcessConfig(config);
     router.push("/processing");
@@ -221,6 +243,65 @@ export default function ConfigurePage() {
                 </button>
               );
             })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Role Selection */}
+      <Card className="mb-8 rounded-xl">
+        <CardHeader>
+          <CardTitle>Your Role</CardTitle>
+          <CardDescription>This personalizes the learning path to what matters for your role</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {(Object.entries(ROLE_PRESETS) as [RolePreset, typeof ROLE_PRESETS[RolePreset]][]).map(([key, role]) => {
+              const isSelected = selectedRole?.preset === key;
+              const IconComponent = ROLE_ICONS[role.icon];
+              return (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setSelectedRole({ preset: key, custom: null, displayName: role.label });
+                    setCustomRole("");
+                  }}
+                  className={cn(
+                    "cursor-pointer text-left p-5 rounded-xl transition-all",
+                    isSelected
+                      ? "bg-surface border-2 border-foreground shadow-[4px_4px_0px_0px_#1E293B]"
+                      : "bg-surface border-2 border-foreground/15 hover:border-foreground/40 hover:bg-surface/80"
+                  )}
+                >
+                  <div className="mb-2">
+                    {IconComponent && <IconComponent size={28} className={isSelected ? "text-foreground" : "text-muted"} />}
+                  </div>
+                  <div className="font-bold text-base mb-1">{role.label}</div>
+                  <div className="text-xs text-muted font-medium leading-relaxed">
+                    {role.description}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Custom role input */}
+          <div className="mt-4 pt-4 border-t border-foreground/10">
+            <label className="text-xs font-bold text-muted block mb-2">Or describe your role</label>
+            <input
+              type="text"
+              value={customRole}
+              onChange={(e) => {
+                setCustomRole(e.target.value);
+                if (e.target.value.trim()) {
+                  setSelectedRole({ preset: null, custom: e.target.value.trim(), displayName: e.target.value.trim() });
+                } else {
+                  setSelectedRole(null);
+                }
+              }}
+              placeholder="e.g., Data engineer learning the API layer"
+              maxLength={200}
+              className="w-full px-4 py-3 rounded-xl border-2 border-foreground/15 bg-surface text-sm font-medium placeholder:text-muted/50 focus:outline-none focus:border-foreground/40 transition-colors"
+            />
           </div>
         </CardContent>
       </Card>

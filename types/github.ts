@@ -1,3 +1,5 @@
+import type { RoleProfile } from "./learning";
+
 export interface GitHubRepo {
   id: number;
   name: string;
@@ -97,4 +99,8 @@ export interface ProcessConfig {
   selectedFiles: TreePreviewFile[];
   skillLevel: "beginner" | "intermediate" | "advanced";
   repoName: string;
+  /** Pre-uploaded file contents — when present, skip GitHub fetch */
+  uploadedFiles?: RepoFile[];
+  /** Selected role for learning path personalization */
+  role?: RoleProfile;
 }

@@ -10,19 +10,38 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
       const forwardedHost = request.headers.get("x-forwarded-host");
       const isLocal = process.env.NODE_ENV === "development";
 
+      let redirectUrl: string;
       if (isLocal) {
-        return NextResponse.redirect(`${origin}${redirectPath}`);
+        redirectUrl = `${origin}${redirectPath}`;
       } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${redirectPath}`);
+        redirectUrl = `https://${forwardedHost}${redirectPath}`;
       } else {
-        return NextResponse.redirect(`${origin}${redirectPath}`);
+        redirectUrl = `${origin}${redirectPath}`;
       }
+
+      const response = NextResponse.redirect(redirectUrl);
+
+      // Persist the GitHub provider token in a secure cookie so it survives
+      // page reloads. Supabase only includes provider_token transiently
+      // in the session right after OAuth exchange.
+      if (data.session?.provider_token) {
+        response.cookies.set("gh_provider_token", data.session.provider_token, {
+          httpOnly: true,
+          secure: !isLocal,
+          sameSite: "lax",
+          path: "/",
+          // Match Supabase session lifetime (default ~1 hour for provider tokens)
+          maxAge: 60 * 60 * 24 * 30,
+        });
+      }
+
+      return response;
     }
   }
 

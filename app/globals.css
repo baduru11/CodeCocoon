@@ -1,40 +1,40 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* === REFINED BRUTALISM COLOR PALETTE === */
-  --color-primary: #4F46E5;
-  --color-primary-hover: #4338CA;
-  --color-secondary: #0D9488;
-  --color-secondary-hover: #0F766E;
-  --color-accent-yellow: #F59E0B;
-  --color-accent-green: #10B981;
-  --color-accent-purple: #8B5CF6;
-  --color-accent-orange: #F97316;
-  --color-accent-pink: #F43F5E;
+  /* === BRUTALIST SIGNAL COLOR PALETTE === */
+  --color-primary: #E8E4DD;
+  --color-primary-hover: #D4CFC6;
+  --color-secondary: #C8C4BD;
+  --color-secondary-hover: #B4B0A9;
+  
+  --color-accent-red: #E63B2E;
+  --color-accent-red-hover: #B3281E;
 
-  --color-background: #F8FAFC;
+  --color-background: #F5F3EE;
   --color-surface: #FFFFFF;
-  --color-foreground: #1E293B;
-  --color-muted: #64748B;
-  --color-border: #1E293B;
+  --color-foreground: #111111;
+  --color-muted: #666666;
+  --color-border: #111111;
 
   /* === TYPOGRAPHY === */
   --font-heading: var(--font-space-grotesk);
-  --font-body: var(--font-dm-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-drama: var(--font-dm-serif);
+  --font-mono: var(--font-space-mono);
 
-  /* === SHADOWS (refined brutalism signature) === */
-  --shadow-brutal-sm: 3px 3px 0px 0px #1E293B;
-  --shadow-brutal: 4px 4px 0px 0px #1E293B;
-  --shadow-brutal-lg: 6px 6px 0px 0px #1E293B;
-  --shadow-brutal-xl: 8px 8px 0px 0px #1E293B;
+  /* === SHADOWS (raw precision) === */
+  --shadow-brutal-sm: 2px 2px 0px 0px #111111;
+  --shadow-brutal: 4px 4px 0px 0px #111111;
+  --shadow-brutal-lg: 8px 8px 0px 0px #111111;
+  --shadow-brutal-xl: 12px 12px 0px 0px #111111;
 
-  /* === BORDERS === */
-  --radius-brutal: 8px;
+  /* === BORDERS / ROUNDING === */
+  --radius-brutal: 2rem; /* The preset dictates rounded-[2rem] to [3rem] */
+  --radius-brutal-sm: 1rem;
+  --radius-brutal-lg: 3rem;
 
   /* === SPACING === */
   --shadow-offset: 4px;
-  --shadow-offset-sm: 3px;
+  --shadow-offset-sm: 2px;
 }
 
 /* === BASE STYLES === */
@@ -54,9 +54,21 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
 }
 
-/* === SUBTLE DOT GRID BACKGROUND === */
+/* === GLOBAL NOISE OVERLAY === */
+.noise-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.05;
+}
+
+/* === SUBTLE DOT GRID BACKGROUND (adjusted for preset) === */
 .dot-grid {
-  background-image: radial-gradient(circle, #CBD5E1 1px, transparent 1px);
+  background-image: radial-gradient(circle, #CCCCCC 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
@@ -85,22 +97,30 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: var(--shadow-brutal-xl);
 }
 
+/* === MICRO-INTERACTIONS === */
+.magnetic-btn {
+  transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.magnetic-btn:hover {
+  transform: scale(1.03);
+}
+
 .brutal-hover {
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.15s ease;
 }
 
 .brutal-hover:hover {
-  transform: translate(2px, 2px);
-  box-shadow: none !important;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-brutal-lg) !important;
 }
 
 .brutal-hover-reverse {
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.15s ease;
 }
 
 .brutal-hover-reverse:hover {
-  transform: translate(-2px, -2px);
-  box-shadow: var(--shadow-brutal-lg);
+  transform: translateY(2px);
+  box-shadow: none !important;
 }
 
 /* === CODE BLOCKS === */

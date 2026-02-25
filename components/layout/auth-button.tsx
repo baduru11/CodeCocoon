@@ -38,6 +38,8 @@ export function AuthButton() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    // Clear the persisted GitHub provider token cookie
+    await fetch("/api/auth/logout", { method: "POST" });
     setUser(null);
   };
 

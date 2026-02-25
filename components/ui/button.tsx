@@ -18,25 +18,24 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || loading}
         className={cn(
-          "inline-flex items-center justify-center font-bold border-2 border-foreground transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-          "shadow-[3px_3px_0px_0px_#1E293B]",
-          "hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none",
-          "active:translate-x-[2px] active:translate-y-[2px] active:shadow-none",
+          "inline-flex items-center justify-center font-bold font-mono border-2 border-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-red focus-visible:ring-offset-2",
+          "shadow-[4px_4px_0px_0px_#111111]",
+          "brutal-hover",
           "disabled:opacity-50 disabled:pointer-events-none disabled:translate-x-0 disabled:translate-y-0",
-          "rounded-lg cursor-pointer",
+          "rounded-[2rem] cursor-pointer",
           {
-            "bg-primary text-white hover:bg-primary-hover": variant === "default",
-            "bg-secondary text-white hover:bg-secondary-hover": variant === "secondary",
+            "bg-foreground text-surface hover:bg-foreground/90": variant === "default",
+            "bg-accent-red text-surface hover:bg-accent-red-hover": variant === "secondary",
             "bg-surface text-foreground hover:bg-background": variant === "outline",
             "bg-transparent text-foreground border-transparent shadow-none hover:bg-foreground/5 hover:border-transparent hover:shadow-none hover:translate-x-0 hover:translate-y-0":
               variant === "ghost",
-            "bg-red-500 text-white hover:bg-red-600": variant === "destructive",
+            "bg-accent-red text-white hover:bg-accent-red-hover": variant === "destructive",
           },
           {
-            "px-3 py-1.5 text-sm": size === "sm",
-            "px-5 py-2.5 text-sm": size === "md",
-            "px-7 py-3 text-base": size === "lg",
-            "p-2.5 aspect-square": size === "icon",
+            "px-4 py-2 text-sm": size === "sm",
+            "px-6 py-3 text-sm": size === "md",
+            "px-8 py-4 text-base": size === "lg",
+            "p-3 aspect-square": size === "icon",
           },
           className
         )}

@@ -1,6 +1,6 @@
-import { GeminiProvider, GeminiSchemas } from "@/lib/ai/gemini";
+import { createAIProvider } from "@/lib/ai/create-provider";
 import { PROMPTS } from "@/lib/ai/prompts";
-import { GEMINI_MODELS } from "@/lib/constants";
+import { AI_MODELS } from "@/lib/constants";
 import type { RepoFile } from "@/types/github";
 
 export async function POST(request: Request) {
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const ai = new GeminiProvider();
+    const ai = createAIProvider();
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream({
@@ -29,10 +29,9 @@ export async function POST(request: Request) {
           // 1. Tech Stack
           send("status", "Detecting tech stack...");
           const techStackResult = await ai.generate({
-            model: GEMINI_MODELS.fast,
+            model: AI_MODELS.fast,
             messages: [{ role: "user", content: PROMPTS.analyzeTechStack(files) }],
             responseFormat: "json",
-            responseSchema: GeminiSchemas.techStack,
           });
           let techStack: unknown;
           try { techStack = JSON.parse(techStackResult.content); } catch { techStack = { languages: [], frameworks: [] }; }
@@ -41,10 +40,9 @@ export async function POST(request: Request) {
           // 2. Architecture
           send("status", "Analyzing architecture...");
           const archResult = await ai.generate({
-            model: GEMINI_MODELS.fast,
+            model: AI_MODELS.fast,
             messages: [{ role: "user", content: PROMPTS.analyzeArchitecture(files) }],
             responseFormat: "json",
-            responseSchema: GeminiSchemas.architecture,
           });
           let architecture: unknown;
           try { architecture = JSON.parse(archResult.content); } catch { architecture = { pattern: "Unknown", description: "", layers: [], entryPoints: [] }; }
@@ -53,7 +51,7 @@ export async function POST(request: Request) {
           // 3. Key Files
           send("status", "Identifying key files...");
           const keyFilesResult = await ai.generate({
-            model: GEMINI_MODELS.fast,
+            model: AI_MODELS.fast,
             messages: [{ role: "user", content: PROMPTS.identifyKeyFiles(files) }],
             responseFormat: "json",
           });
@@ -64,7 +62,7 @@ export async function POST(request: Request) {
            // 4. Summary
           send("status", "Writing summary...");
           const summaryResult = await ai.generate({
-            model: GEMINI_MODELS.fast,
+            model: AI_MODELS.fast,
             messages: [{ role: "user", content: PROMPTS.generateSummary(files) }],
           });
           send("summary", summaryResult.content);

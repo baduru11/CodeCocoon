@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { GeminiProvider } from "@/lib/ai/gemini";
+import { createAIProvider } from "@/lib/ai/create-provider";
 import { PROMPTS } from "@/lib/ai/prompts";
-import { GEMINI_MODELS } from "@/lib/constants";
+import { AI_MODELS } from "@/lib/constants";
 
 interface EvaluateRequest {
   exerciseType: string;
@@ -22,10 +22,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const ai = new GeminiProvider();
+    const ai = createAIProvider();
 
     const result = await ai.generate({
-      model: GEMINI_MODELS.fast,
+      model: AI_MODELS.fast,
       messages: [
         {
           role: "user",
