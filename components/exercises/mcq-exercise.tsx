@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn, normalizeCode } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CodeBlock } from "@/components/ui/code-block";
@@ -83,7 +83,7 @@ function MCQExercise({ exercise, onComplete }: MCQExerciseProps) {
       {/* Code context */}
       {exercise.originalCode && (
         <CodeBlock
-          code={exercise.originalCode}
+          code={normalizeCode(exercise.originalCode)}
           filename={exercise.relatedFile}
           language="typescript"
         />

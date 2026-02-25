@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { cn } from "@/lib/utils";
+import { cn, normalizeCode } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -27,7 +27,7 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
   const shuffledLines = useMemo(() => {
     try {
       const parsed = JSON.parse(exercise.modifiedCode || "[]");
-      return Array.isArray(parsed) ? parsed as string[] : [];
+      return Array.isArray(parsed) ? (parsed as string[]).map(normalizeCode) : [];
     } catch {
       return [];
     }
@@ -36,7 +36,7 @@ function ParsonsExercise({ exercise, onComplete }: ParsonsExerciseProps) {
   const correctOrder = useMemo(() => {
     try {
       const parsed = JSON.parse(exercise.expectedAnswer);
-      return Array.isArray(parsed) ? parsed as string[] : [];
+      return Array.isArray(parsed) ? (parsed as string[]).map(normalizeCode) : [];
     } catch {
       return [];
     }

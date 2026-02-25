@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn, normalizeCode } from "@/lib/utils";
 import { useState } from "react";
 import { Copy, Check } from "lucide-react";
 import { Light as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -37,16 +37,8 @@ function CodeBlock({
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
-  // Normalize code: handle escaped characters from JSON
-  const normalizedCode = code
-    .replace(/\\n/g, '\n')      // Convert \n to actual newlines
-    .replace(/\\t/g, '\t')      // Convert \t to actual tabs
-    .replace(/\\r/g, '\r')      // Convert \r to carriage returns
-    .replace(/\\"/g, '"')       // Convert \" to quotes
-    .replace(/\\\\/g, '\\');    // Convert \\ to single backslash
-
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(normalizedCode);
+    await navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -103,11 +95,8 @@ function CodeBlock({
             fontFamily: "var(--font-mono), monospace",
             overflowX: "auto",
           }}
-          lineProps={{
-            style: { whiteSpace: "pre", wordBreak: "normal" }
-          }}
         >
-          {normalizedCode}
+          {normalizeCode(code)}
         </SyntaxHighlighter>
       </div>
     </div>

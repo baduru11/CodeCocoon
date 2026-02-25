@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { cn } from "@/lib/utils";
+import { cn, normalizeCode } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -19,7 +19,7 @@ interface FillBlankExerciseProps {
 }
 
 function FillBlankExercise({ exercise, onComplete }: FillBlankExerciseProps) {
-  const code = exercise.modifiedCode || exercise.originalCode || "";
+  const code = normalizeCode(exercise.modifiedCode || exercise.originalCode || "");
 
   // Parse blank numbers from the code
   const blankNumbers = useMemo(() => {

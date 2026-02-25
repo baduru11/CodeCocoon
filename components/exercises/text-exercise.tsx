@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn, normalizeCode } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeBlock } from "@/components/ui/code-block";
@@ -59,10 +59,11 @@ function TextExercise({ exercise, onComplete }: TextExerciseProps) {
     }
   };
 
-  const codeToShow =
+  const codeToShow = normalizeCode(
     exercise.type === "error_injection"
-      ? exercise.modifiedCode || exercise.originalCode
-      : exercise.originalCode;
+      ? exercise.modifiedCode || exercise.originalCode || ""
+      : exercise.originalCode || ""
+  );
 
   const placeholderMap: Record<string, string> = {
     error_injection: "Describe the bug(s) you found and how to fix them...",

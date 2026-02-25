@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn, normalizeCode } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeBlock } from "@/components/ui/code-block";
@@ -36,7 +36,7 @@ function ErrorMessageExercise({
   const [revealed, setRevealed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const errorMessage = exercise.modifiedCode || "";
+  const errorMessage = normalizeCode(exercise.modifiedCode || "");
 
   const handleSubmit = async () => {
     if (!userAnswer.trim()) return;
