@@ -13,15 +13,17 @@
 
 <p align="center">
   You built it with AI. Now understand what's inside.<br />
-  Connect your GitHub repo, get your codebase analyzed, and emerge as a real developer.
+  Connect your GitHub repo (or upload your code), get your codebase analyzed, and emerge as a real developer.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" alt="Next.js 16" />
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react" alt="React 19" />
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" alt="TypeScript 5" />
   <img src="https://img.shields.io/badge/Tailwind-v4-06B6D4?logo=tailwindcss" alt="Tailwind v4" />
-  <img src="https://img.shields.io/badge/Gemini_AI-2.5_Flash-4285F4?logo=google" alt="Gemini AI" />
+  <img src="https://img.shields.io/badge/Gemini-2.5_Flash-4285F4?logo=google" alt="Gemini 2.5 Flash" />
   <img src="https://img.shields.io/badge/Supabase-Auth_&_DB-3FCF8E?logo=supabase" alt="Supabase" />
+  <img src="https://img.shields.io/badge/License-MIT-yellow" alt="MIT License" />
 </p>
 
 ---
@@ -35,37 +37,248 @@
 
 ## What It Does
 
-- **🔗 Connect** — Paste any public GitHub URL or sign in to browse your repos
-- **🔍 Analyze** — AI breaks down your codebase: tech stack, architecture, key files, code quality
-- **📚 Learn** — Get a personalized learning path built from *your own code*, not generic tutorials
-- **💪 Practice** — Interactive exercises: bug hunting, code recreation, explanations, quizzes — all using snippets from your actual project
-- **📊 Track** — Save projects, track progress, revisit anytime
+| Step | Action |
+|------|--------|
+| 🔗 **Connect** | Paste any public GitHub URL, browse your repos, or upload local files/folders |
+| 🔍 **Analyze** | AI breaks down your codebase: tech stack, architecture, key files, code quality |
+| 📖 **Tutorial** | Get beginner-friendly chapters explaining your project's core concepts with diagrams |
+| 📚 **Learn** | Personalized skill tree built from *your own code* — not generic tutorials |
+| 💪 **Practice** | 7 exercise types using snippets from your actual project |
+| 📊 **Track** | Save projects, track progress, revisit anytime |
 
 ## How It Works
 
 ```
-Connect repo  →  AI Analysis  →  Learning Path  →  Exercises  →  Understanding
-    🔗              🔍               📚               💪             🦋
+Paste repo URL ──→ Select files ──→ AI Pipeline (13 steps) ──→ Results
+     🔗               📁              🧠                         🦋
+                                       │
+                    ┌──────────────────┼──────────────────┐
+                    ▼                  ▼                  ▼
+              📖 Tutorial       📚 Learning Path    💪 Exercises
+            (chapters with      (skill tree with     (7 types from
+             mermaid diagrams)   role presets)        your code)
 ```
 
-1. **Paste a GitHub URL** (or browse your repos after signing in)
-2. **Select files** to analyze and choose your skill level (🐛 Beginner / 🪺 Intermediate / 🦋 Advanced)
-3. **Watch the AI work** — real-time SSE streaming shows each analysis step
+1. **Paste a GitHub URL** (or upload local files, or browse your repos after signing in)
+2. **Select files** to analyze and choose your **skill level** (🐛 Beginner / 🪺 Intermediate / 🦋 Advanced) and **role** (Frontend, Backend, Fullstack, DevOps, PM, QA)
+3. **Watch the AI work** — real-time SSE streaming shows each analysis step as it completes
 4. **Get your results** — tech stack breakdown, architecture overview, key files explained
-5. **Follow your learning path** — personalized modules with curated resources
-6. **Do the exercises** — practice with code from your own project
+5. **Read the tutorial** — beginner-friendly chapters with Mermaid diagrams explaining your project's abstractions
+6. **Navigate the skill tree** — role-filtered learning path with prerequisite DAG and curated resources
+7. **Do the exercises** — 7 exercise types, all built from your project's actual code
+
+---
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph Client["Client (React 19)"]
+        UI[Pages & Components]
+        Hooks[Custom Hooks]
+        LS[localStorage]
+    end
+
+    subgraph Server["Server (Next.js 16 App Router)"]
+        API[API Routes]
+        SSE[SSE Stream]
+    end
+
+    subgraph AI["AI Layer"]
+        GP[GeminiProvider]
+        TP[Tutorial Pipeline]
+        LP[Learning Pipeline V2]
+        PR[Prompts Catalog]
+    end
+
+    subgraph External["External Services"]
+        Gemini["Gemini 2.5 Flash Lite\n(fast/analysis)"]
+        GeminiDeep["Gemini 2.5 Flash\n(deep/generation)"]
+        GitHub[GitHub API]
+        Supabase[(Supabase\nAuth + Postgres)]
+    end
+
+    UI --> Hooks --> API
+    API --> SSE --> UI
+    API --> GP --> Gemini
+    API --> GP --> GeminiDeep
+    GP --> PR
+    API --> TP
+    API --> LP
+    TP --> GP
+    LP --> GP
+    API --> GitHub
+    API --> Supabase
+    Hooks --> LS
+    UI --> Supabase
+```
+
+---
+
+## AI Pipeline
+
+The main processing pipeline runs 13 steps via SSE streaming. Each step sends real-time progress to the client.
+
+```mermaid
+graph LR
+    A[Fetch Files] --> B[Tech Stack]
+    B --> C[Architecture]
+    C --> D[Key Files]
+    D --> E[Tutorial Pipeline]
+    E --> F[Learning Pipeline]
+    F --> G[Exercises]
+    G --> H[Complete ✓]
+
+    style A fill:#6366F1,color:#fff
+    style B fill:#6366F1,color:#fff
+    style C fill:#6366F1,color:#fff
+    style D fill:#6366F1,color:#fff
+    style E fill:#F59E0B,color:#000
+    style F fill:#10B981,color:#fff
+    style G fill:#EF4444,color:#fff
+    style H fill:#8B5CF6,color:#fff
+```
+
+| # | Step | Model | Output |
+|---|------|-------|--------|
+| 1 | **Fetch Files** | — | Source code from GitHub API or uploads |
+| 2 | **Tech Stack** | Flash Lite | Languages, frameworks, DBs, tools, styling |
+| 3 | **Architecture** | Flash Lite | Pattern, layers, entry points |
+| 4 | **Key Files** | Flash Lite | 8-12 most important files with roles |
+| 5 | **Tutorial: Abstractions** | Flash Lite | 5-10 core concepts (YAML) |
+| 6 | **Tutorial: Relationships** | Flash Lite | Concept graph + project summary (YAML) |
+| 7 | **Tutorial: Chapter Order** | Flash Lite | Pedagogical ordering (YAML) |
+| 8 | **Tutorial: Chapters** | Flash | N chapters with Mermaid diagrams (sequential) |
+| 9 | **Learning: Concepts** | Flash Lite | 10-20 role-filtered concepts |
+| 10 | **Learning: Dependency Graph** | Flash Lite | Prerequisite DAG + gap analysis |
+| 11 | **Learning: Lessons** | Flash | Explanations + codebase references |
+| 12 | **Learning: Resources** | Flash Lite | 3-5 curated resources per concept |
+| 13 | **Exercises** | Flash | 8 exercises across 7 types |
+
+<details>
+<summary><strong>Tutorial Pipeline (Steps 5-8)</strong></summary>
+
+The tutorial pipeline generates beginner-friendly chapters that explain a project's core concepts:
+
+1. **Identify Abstractions** — Extracts 5-10 core concepts with beginner-friendly descriptions and analogies
+2. **Analyze Relationships** — Maps how concepts relate, generates a project summary
+3. **Order Chapters** — Arranges concepts in pedagogical order (foundational first)
+4. **Write Chapters** — Generates full Markdown chapters sequentially (each builds on previous), includes Mermaid `sequenceDiagram` visualizations and cross-chapter links
+
+Each chapter includes: explanation, code examples from the repo, diagrams, and prev/next navigation.
+
+</details>
+
+<details>
+<summary><strong>Learning Pipeline V2 (Steps 9-12)</strong></summary>
+
+The learning pipeline builds a personalized skill tree:
+
+1. **Concept Extraction** — Identifies 10-20 concepts filtered by the user's role, categorized as `language`, `framework`, `pattern`, `tooling`, `architecture`, or `library`
+2. **Dependency Graph** — Builds a prerequisite DAG (max 3 prerequisites per node), assigns difficulty (1-5) and time estimates (5-60 min), plus gap analysis of what the user likely already knows
+3. **Lesson Content** — Deep explanations (100-200 words) with "In Your Codebase" references and key takeaways
+4. **Resource Curation** — 3-5 resources per concept: official docs, free tutorials, and paid courses
+
+**Role Presets:**
+
+| Role | Focus Areas |
+|------|-------------|
+| `fullstack_dev` | End-to-end: frontend, backend, database, deployment |
+| `frontend_dev` | UI components, state management, styling, client-side logic |
+| `backend_dev` | APIs, databases, auth, server-side logic |
+| `devops_infra` | CI/CD, deployment, monitoring, infrastructure |
+| `product_manager` | Architecture overview, data flow, feature mapping |
+| `qa_testing` | Test patterns, error handling, edge cases |
+
+The result is a visual skill tree with color-coded modules, prerequisite edges, and per-node completion tracking.
+
+</details>
+
+---
+
+## Exercise System
+
+All exercises use real code snippets from the analyzed project — never generic examples.
+
+| Type | Name | What You Do |
+|------|------|-------------|
+| 🐛 `error_injection` | **Bug Hunt** | Find 1-3 bugs injected into real code; explain fixes in natural language |
+| ✏️ `code_recreation` | **Fill in the Blank** | Complete code with `___BLANK___` placeholders (2-3 for beginners, 4-6 for advanced) |
+| 💬 `code_explanation` | **Explain** | Describe what a code snippet does in 3-5 sentences |
+| 🔘 `mcq` | **Multiple Choice** | Answer a question about code behavior (4 options) |
+| 🔮 `output_prediction` | **Predict Output** | Choose the correct output from 4 possibilities |
+| 🧩 `parsons` | **Code Order** | Rearrange shuffled lines into correct order |
+| 🚨 `error_message` | **Fix the Error** | Given code + error message, explain the cause and fix |
+
+Exercises are AI-evaluated with anti-cheat detection (copy-paste detection) and type-specific grading rules.
+
+---
 
 ## Tech Stack
 
-| Layer | Tech |
-|-------|------|
-| Framework | Next.js 16 (App Router) |
-| UI | React 19 + Tailwind CSS v4 |
-| Design | Neo-brutalist (bold borders, hard shadows, vibrant colors) |
-| AI | Google Gemini (2.0 Flash + 2.5 Flash) |
-| Auth & DB | Supabase (GitHub OAuth + Postgres) |
-| GitHub API | Octokit with auth fallback |
-| Code Editor | CodeMirror 6 |
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Framework** | Next.js 16 (App Router) | Server/client rendering, API routes, SSE streaming |
+| **UI** | React 19 | Components, hooks, concurrent features |
+| **Language** | TypeScript 5 | Type safety across the stack |
+| **Styling** | Tailwind CSS v4 | Utility-first CSS with neo-brutalist design system |
+| **AI** | Google Gemini (`@google/genai`) | `gemini-2.5-flash-lite` (analysis) + `gemini-2.5-flash` (generation) |
+| **Auth & DB** | Supabase | GitHub OAuth, Postgres with RLS, cookie-based SSR auth |
+| **GitHub API** | Octokit | Repo tree/file fetching with auth fallback and concurrency control |
+| **Code Editor** | CodeMirror 6 (`@uiw/react-codemirror`) | In-browser code editing with language support |
+| **Code Display** | `react-syntax-highlighter` | Static code highlighting |
+| **Diagrams** | Mermaid + Dagre | Architecture diagrams, skill tree layout |
+| **Markdown** | `react-markdown` + `remark-gfm` | Rendering tutorial chapters and lesson content |
+| **Icons** | `lucide-react` | Consistent icon set |
+| **Fonts** | Space Grotesk / DM Sans / Geist Mono | Headings / body / code |
+
+---
+
+<details>
+<summary><h2>API Routes</h2></summary>
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/process` | POST | Main SSE pipeline — 13 steps, returns streaming events |
+| `/api/analyze` | POST | Standalone analysis (SSE stream) |
+| `/api/github/repos` | GET | List authenticated user's repos |
+| `/api/github/tree` | POST | Fetch repo file tree metadata |
+| `/api/github/fetch` | POST | Fetch file contents for selected files |
+| `/api/assess/questions` | POST | Generate 8-question skill quiz |
+| `/api/assess/evaluate` | POST | Evaluate quiz answers |
+| `/api/learn/generate` | POST | Generate learning path (standalone) |
+| `/api/exercises/generate` | POST | Generate exercises (standalone) |
+| `/api/exercises/evaluate` | POST | AI-grade exercise answer |
+| `/api/projects/save` | POST | Save project to Supabase |
+| `/api/projects/list` | POST | List user's saved projects |
+| `/api/projects/check-duplicate` | POST | Check for duplicate project |
+| `/api/projects/[id]` | GET/DELETE | Get or delete a project |
+| `/api/upload` | POST | File/folder upload handler |
+
+</details>
+
+<details>
+<summary><h2>Database Schema</h2></summary>
+
+9 tables with Row Level Security (RLS) — users can only access their own data.
+
+| Table | Purpose |
+|-------|---------|
+| `profiles` | User profiles (auto-created on signup via trigger) |
+| `projects` | Repo/upload records with status lifecycle: `pending → fetching → analyzing → complete → error` |
+| `project_files` | Raw source file content per project |
+| `analysis_results` | Tech stack, architecture, code quality, key files, summary, tutorial (all JSONB) |
+| `assessments` | Quiz questions, answers, and scores |
+| `learning_paths` | V1 (flat modules) or V2 (skill graph + role + gap analysis), versioned |
+| `learning_progress` | Per-user, per-lesson completion tracking |
+| `exercises` | All 7 exercise types with full metadata |
+| `exercise_attempts` | Per-user answers, correctness, and AI feedback |
+
+Supports two project sources: `github` and `upload`.
+
+</details>
+
+---
 
 ## Getting Started
 
@@ -81,7 +294,7 @@ Connect repo  →  AI Analysis  →  Learning Path  →  Exercises  →  Underst
 ```bash
 # Clone the repo
 git clone https://github.com/yourusername/codecocoon.git
-cd codecocoon/codecocoon
+cd codecocoon
 
 # Install dependencies
 npm install
@@ -105,30 +318,71 @@ GEMINI_API_KEY=                   # Required — Google Gemini API key
 GITHUB_TOKEN=                     # Optional — increases rate limit (60 → 5000 req/hr)
 ```
 
-## Screenshots
+### Commands
 
-> *Coming soon — screenshots of the landing page, analysis view, learning path, and exercises*
+```bash
+npm run dev      # Start dev server (localhost:3000)
+npm run build    # Production build
+npm run lint     # ESLint (core-web-vitals + typescript)
+```
+
+---
 
 ## Project Structure
 
 ```
 codecocoon/
-├── app/                    # Next.js App Router pages
-│   ├── (auth)/             # Login & OAuth callback
-│   ├── (main)/             # All feature pages (connect, analyze, learn, exercises...)
-│   └── api/                # API routes (SSE streaming, GitHub, AI)
+├── app/
+│   ├── (auth)/                # Login & OAuth callback
+│   ├── (main)/                # Feature pages
+│   │   ├── connect/           # GitHub URL input or repo browser
+│   │   ├── configure/         # File selection + skill level + role
+│   │   ├── processing/        # Real-time SSE pipeline progress
+│   │   ├── results/           # Analysis + tutorial + learning + exercises
+│   │   ├── analyze/           # Standalone analysis view
+│   │   ├── learn/             # Learning path / skill tree
+│   │   ├── exercises/         # Exercise practice
+│   │   ├── assess/            # Skill assessment quiz
+│   │   ├── upload/            # Local file/folder upload
+│   │   ├── dashboard/         # Saved projects (auth required)
+│   │   └── history/           # Project history
+│   └── api/                   # 15 API routes (SSE + REST)
 ├── components/
-│   ├── ui/                 # Design system primitives
-│   ├── layout/             # Navbar, Footer
-│   └── landing/            # Hero, Features, How-it-works
+│   ├── ui/                    # Design system (Button, Card, Input, etc.)
+│   ├── layout/                # Navbar, Footer
+│   ├── landing/               # Hero, Features, How-it-works
+│   ├── results/               # SkillTree, Tutorial, LearningPath, Exercises
+│   └── exercises/             # Exercise type components
 ├── lib/
-│   ├── ai/                 # AI provider abstraction + Gemini implementation
-│   ├── github/             # GitHub API (fetch, parse, filter)
-│   └── supabase/           # Supabase clients & middleware
-├── hooks/                  # React hooks (useAuth, useAnalysis, useLocalStorage)
-├── types/                  # TypeScript type definitions
-└── supabase/migrations/    # Database schema (9 tables with RLS)
+│   ├── ai/                    # GeminiProvider, pipelines, prompts, schemas
+│   ├── github/                # URL parser, file fetcher, filter
+│   └── supabase/              # Browser client, server client, middleware
+├── hooks/                     # useAuth, useProcessing, useAnalysis, etc.
+├── types/                     # TypeScript types (8 modules)
+└── supabase/migrations/       # Database schema (9 tables with RLS)
 ```
+
+---
+
+<details>
+<summary><h2>Limits & Constraints</h2></summary>
+
+| Parameter | Value |
+|-----------|-------|
+| Max files per analysis | 100 |
+| Max file size | 100 KB |
+| Max total content | 500 KB |
+| File size warning threshold | 50 KB |
+| GitHub concurrent fetches | 5 |
+| GitHub rate limit (no token) | 60 req/hr |
+| GitHub rate limit (with token) | 5,000 req/hr |
+| Gemini max retries | 5 |
+| Gemini request gap | 7 seconds (~8.5 RPM) |
+| Prompt max lines/file | 150 (truncated) |
+| Prompt max total chars | 80,000 |
+| Supported file extensions | 30+ (TS, JS, Python, Go, Rust, Java, and more) |
+
+</details>
 
 ## Contributing
 
@@ -146,8 +400,3 @@ MIT
 
 ---
 
-<p align="center">
-  Built with ❤️ for vibe coders ready to spread their wings
-  <br />
-  <code>🐛 → 🪺 → 🦋</code>
-</p>
