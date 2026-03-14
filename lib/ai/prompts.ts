@@ -97,12 +97,16 @@ function getContentForIndices(files: RepoFile[], indices: number[]): string {
     .join("\n\n");
 }
 
+
 export const PROMPTS = {
-  analyzeTechStack(files: RepoFile[]): string {
+  analyzeTechStack(files: RepoFile[], ragContext?: string): string {
+    const ragSection = ragContext
+      ? `\n\nADDITIONAL CODE CONTEXT:\n${ragContext}`
+      : "";
     return `You are a senior software engineer analyzing a codebase. Identify ALL technologies used.
 
 CODEBASE (imports and declarations):
-${formatFilesStructureOnly(files)}
+${formatFilesStructureOnly(files)}${ragSection}
 
 Analyze every file carefully. For each category:
 - languages: Programming languages used (e.g., "TypeScript", "Python")
@@ -114,11 +118,12 @@ Analyze every file carefully. For each category:
 Be specific. Don't guess — only include what's evident from the code.`;
   },
 
-  analyzeArchitecture(files: RepoFile[]): string {
+  analyzeArchitecture(files: RepoFile[], ragContext?: string): string {
+    const codeContext = ragContext || formatFilesTruncated(files, 80);
     return `You are a senior software architect analyzing a codebase's architecture.
 
 CODEBASE (structure and key sections):
-${formatFilesTruncated(files, 80)}
+${codeContext}
 
 Analyze:
 1. pattern: The overall architecture pattern (e.g., "MVC", "Component-based SPA", "Serverless", "Microservices", "Monolith")
@@ -274,13 +279,15 @@ IMPORTANT:
   generateExercises(
     files: RepoFile[],
     skillLevel: string,
-    exerciseTypes: string[]
+    exerciseTypes: string[],
+    ragContext?: string
   ): string {
+    const codeContext = ragContext || formatFilesTruncated(files.slice(0, 8));
     return `You are a coding instructor creating interactive exercises from a student's OWN codebase.
 
 SKILL LEVEL: ${skillLevel}
 CODEBASE:
-${formatFilesTruncated(files.slice(0, 8))}
+${codeContext}
 
 Generate exactly 8 exercises with this distribution:
 - 1 error_injection
@@ -383,6 +390,128 @@ Every exercise MUST have ALL of these fields:
 - explanation (string for mcq/output_prediction, empty string "" for other types)`;
   },
 
+  generateExercisesWithConcepts(
+    ragContext: string,
+    skillLevel: string,
+    exerciseTypes: string[],
+    concepts: { name: string; category: string }[],
+    roleLabel: string
+  ): string {
+    const conceptList = concepts.map((c) => `- ${c.name} (${c.category})`).join("\n");
+    return `You are a coding instructor creating interactive exercises from a student's OWN codebase.
+These exercises should reinforce the learning path concepts identified for this student.
+
+SKILL LEVEL: ${skillLevel}
+ROLE: ${roleLabel}
+
+LEARNING PATH CONCEPTS (exercises should target these):
+${conceptList}
+
+RELEVANT CODE:
+${ragContext}
+
+Generate exactly 8 exercises with this distribution:
+- 1 error_injection
+- 1 code_recreation (fill-in-the-blank)
+- 1 code_explanation
+- 2 mcq
+- 1 output_prediction
+- 1 parsons
+- 1 error_message
+
+Types available: ${exerciseTypes.join(", ")}
+
+For "error_injection" exercises:
+- Take REAL code from their codebase and introduce 1-3 realistic bugs (off-by-one errors, missing null checks, wrong variable names, logic errors)
+- Set originalCode to an EMPTY STRING "" (do NOT include the correct version — the user must NOT see it)
+- Set modifiedCode to the buggy version (this is what the user will see and debug)
+- The expectedAnswer should describe the bugs and how to fix them in PLAIN TEXT (e.g., "Line 5 has an off-by-one error: the loop should use < instead of <=")
+- Do NOT put corrected code in expectedAnswer — describe the fixes verbally
+- Provide 2-3 progressive hints that guide toward finding bugs WITHOUT revealing the answers
+
+For "code_recreation" exercises (FILL-IN-THE-BLANK format):
+- Pick a meaningful code snippet (function, component, or logic block) from their codebase
+- Create a version with key parts replaced by numbered blanks: ___BLANK_1___, ___BLANK_2___, etc.
+- Set modifiedCode to the code WITH blanks (this is what the user sees)
+- Set originalCode to an EMPTY STRING ""
+- Set expectedAnswer to a JSON object mapping blank numbers to their correct values, e.g.: {"1": "useState", "2": "count", "3": "setCount", "4": "0"}
+- BLANK DIFFICULTY SCALING (based on skill level "${skillLevel}"):
+  - If beginner: Use ONLY 2-3 blanks. Blank out well-known framework APIs and common patterns (e.g., "useState", "useEffect", "import", "export default", "async", "await", "console.log", "return"). Do NOT blank out project-specific variable names or custom function names. The blanks should be guessable from general programming knowledge alone.
+  - If intermediate: Use 3-4 blanks. Mix of common framework APIs and some project-specific logic. At least half the blanks should be common concepts.
+  - If advanced: Use 4-6 blanks. Include project-specific variables, logic patterns, subtle operators, and nuanced details.
+- Do NOT blank out trivial syntax like semicolons or brackets — focus on meaningful code elements
+- The prompt should say "Fill in the blanks to complete this code snippet"
+- Hints should give clues about what each blank should contain without revealing the answer
+- Example modifiedCode: "const [___BLANK_1___, ___BLANK_2___] = ___BLANK_3___(___BLANK_4___);"
+- Example expectedAnswer: {"1": "count", "2": "setCount", "3": "useState", "4": "0"}
+
+For "code_explanation" exercises:
+- Show a code snippet from their project
+- Ask them to explain what it does
+- Set originalCode to the snippet being explained
+- The expectedAnswer should be CONCISE (3-5 sentences max)
+- Explain at the student's skill level (${skillLevel})
+- Focus on WHAT the code does and WHY, not implementation minutiae
+- Use simple language, avoid jargon
+
+For "mcq" (multiple choice) exercises:
+- Create questions about concepts from their codebase
+- CRITICAL: You MUST set the "options" field to an array of EXACTLY 4 strings
+- CRITICAL: You MUST set "correctOptionIndex" to a number 0-3 (0-based index of the correct option)
+- CRITICAL: You MUST set "expectedAnswer" to the EXACT TEXT of the correct option string (copy it verbatim from the options array)
+- Set "explanation" to explain why the correct answer is right and others are wrong. IMPORTANT: Reference options as A, B, C, D (letters), NOT 1, 2, 3, 4 (numbers). For example: "A is correct because..." or "Option C is wrong because..."
+- The prompt should be the question text
+- Set originalCode to the relevant code snippet if applicable (or empty string if not needed)
+- Example format:
+  "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
+  "correctOptionIndex": 1,
+  "expectedAnswer": "Option B text",
+  "explanation": "B is correct because... Option A is wrong because..."
+
+For "parsons" exercises (Code Ordering):
+- Pick a meaningful code snippet (5-10 lines) from their codebase — a function body, a component return, or a logic block
+- Split the code into individual lines, each as a separate string
+- Set modifiedCode to a JSON array of the code lines SHUFFLED in random order, e.g.: ["  return result;", "function add(a, b) {", "  const result = a + b;", "}"]
+- Set expectedAnswer to a JSON array of the SAME lines in the CORRECT order, e.g.: ["function add(a, b) {", "  const result = a + b;", "  return result;", "}"]
+- CRITICAL: modifiedCode and expectedAnswer must contain the EXACT same lines, just in different order
+- CRITICAL: Each line must be a complete, meaningful line of code (not fragments)
+- Preserve indentation in the lines (e.g., "  const x = 1;" not "const x = 1;")
+- The prompt should say "Arrange the following lines of code in the correct order"
+- Set originalCode to an EMPTY STRING ""
+- Hints should describe what the code should do step-by-step without revealing the exact order
+
+For "error_message" exercises (Error Interpretation):
+- Take code from their codebase and create a scenario where it would produce a specific error
+- Set originalCode to the code snippet that causes the error
+- Set modifiedCode to the ERROR MESSAGE text (e.g., "TypeError: Cannot read properties of undefined (reading 'map')" or "ReferenceError: x is not defined")
+- Make the error messages realistic — use actual JavaScript/TypeScript error formats
+- The prompt should say "The following code produces the error shown below. Explain what causes this error and how to fix it."
+- The expectedAnswer should explain: (1) what the error means, (2) which line causes it, (3) why it happens, (4) how to fix it
+- Focus on common errors: TypeError, ReferenceError, SyntaxError, undefined access, null checks, async/await issues
+- Hints should guide toward understanding the error type without revealing the exact cause
+
+For "output_prediction" exercises:
+- Show a code snippet and ask "What will this code output?" or "What is the value of X after this code runs?"
+- Set originalCode to the code snippet being analyzed
+- CRITICAL: You MUST set the "options" field to an array of EXACTLY 4 strings representing possible outputs
+- CRITICAL: You MUST set "correctOptionIndex" to a number 0-3 (0-based index of the correct output)
+- CRITICAL: You MUST set "expectedAnswer" to the EXACT TEXT of the correct option string (copy it verbatim from the options array)
+- Set "explanation" to explain the execution flow step-by-step showing why the correct output is produced. IMPORTANT: Reference options as A, B, C, D (letters), NOT 1, 2, 3, 4 (numbers)
+- Make the wrong options realistic — common mistakes like off-by-one errors, wrong operator precedence, etc.
+- The prompt should be something like "What will the following code output?" or "What is the final value of 'result'?"
+- Focus on concepts like: loop behavior, conditional logic, array operations, string manipulation, scope/closure
+- Example: code with a loop → options: ["0 1 2 3", "1 2 3 4", "0 1 2 3 4", "1 2 3"] where one is correct
+
+IMPORTANT: Each exercise should relate to one of the learning path concepts listed above.
+Make ALL exercises relevant to their actual code. Reference specific files via relatedFile.
+Difficulty should match their skill level.
+Every exercise MUST have ALL of these fields:
+- id (unique string), type, difficulty, title, prompt, originalCode (can be empty ""), expectedAnswer, hints (array of strings), relatedFile
+- options (array of 4 strings for mcq/output_prediction, empty array [] for other types)
+- correctOptionIndex (0-3 for mcq/output_prediction, 0 for other types)
+- explanation (string for mcq/output_prediction, empty string "" for other types)`;
+  },
+
   evaluateExerciseAnswer(
     exerciseType: string,
     prompt: string,
@@ -467,12 +596,13 @@ Respond in JSON format: { "isCorrect": boolean, "feedback": "string" }`;
 
   // ─── Tutorial Pipeline Prompts ─────────────────────────────────────
 
-  identifyAbstractions(files: RepoFile[], projectName: string, maxAbstractions = 10): string {
+  identifyAbstractions(files: RepoFile[], projectName: string, maxAbstractions = 10, ragContext?: string): string {
     const { context, listing } = formatFilesWithIndices(files);
+    const codeContext = ragContext || context;
     return `For the project \`${projectName}\`:
 
 Codebase Context:
-${context}
+${codeContext}
 
 Analyze the codebase context.
 Identify the top 5-${maxAbstractions} core most important abstractions to help those new to the codebase.

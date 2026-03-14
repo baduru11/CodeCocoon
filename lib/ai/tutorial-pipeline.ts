@@ -6,9 +6,10 @@ import type {
   TutorialChapter,
   TutorialData,
 } from "@/types/tutorial";
-import { GEMINI_MODELS } from "@/lib/constants";
+import { OPENROUTER_MODELS } from "@/lib/constants";
 import { PROMPTS } from "./prompts";
 import { extractYaml, parseIndex } from "./yaml-parser";
+import { RAGService, formatChunksForPrompt } from "@/lib/rag";
 
 // ─── Validation ──────────────────────────────────────────────────────
 
@@ -134,19 +135,26 @@ export async function runTutorialPipeline(
   files: RepoFile[],
   projectName: string,
   send: (type: string, data: unknown) => void,
-  checkAborted: () => void
+  checkAborted: () => void,
+  rag?: RAGService | null
 ): Promise<TutorialData> {
   // Step 1: Identify Abstractions
   send("step_start", "tutorial_abstractions");
   send("status", "Identifying core concepts...");
 
+  let ragContext: string | undefined;
+  if (rag) {
+    const chunks = await rag.query(projectName, "Core abstractions, design patterns, and architectural concepts in this codebase", 12);
+    if (chunks) ragContext = formatChunksForPrompt(chunks);
+  }
+
   const abstractions = await retryOnBadOutput(async () => {
     const result = await ai.generate({
-      model: GEMINI_MODELS.fast,
+      model: OPENROUTER_MODELS.fast,
       messages: [
         {
           role: "user",
-          content: PROMPTS.identifyAbstractions(files, projectName),
+          content: PROMPTS.identifyAbstractions(files, projectName, 10, ragContext),
         },
       ],
     });
@@ -162,7 +170,7 @@ export async function runTutorialPipeline(
 
   const relationships = await retryOnBadOutput(async () => {
     const result = await ai.generate({
-      model: GEMINI_MODELS.fast,
+      model: OPENROUTER_MODELS.fast,
       messages: [
         {
           role: "user",
@@ -185,7 +193,7 @@ export async function runTutorialPipeline(
 
   const chapterOrder = await retryOnBadOutput(async () => {
     const result = await ai.generate({
-      model: GEMINI_MODELS.fast,
+      model: OPENROUTER_MODELS.fast,
       messages: [
         {
           role: "user",
@@ -222,10 +230,25 @@ export async function runTutorialPipeline(
     const chapterNum = i + 1;
 
     // Get file content for this abstraction's relevant files
-    const fileContext = abstraction.fileIndices
-      .filter((idx) => idx >= 0 && idx < files.length)
-      .map((idx) => `--- File: ${idx} # ${files[idx].path} ---\n${files[idx].content}`)
-      .join("\n\n");
+    let fileContext: string;
+    if (rag) {
+      const chunks = await rag.query(
+        projectName,
+        `How ${abstraction.name} is implemented and used in this codebase: ${abstraction.description}`,
+        8
+      );
+      fileContext = chunks
+        ? formatChunksForPrompt(chunks)
+        : abstraction.fileIndices
+            .filter((idx) => idx >= 0 && idx < files.length)
+            .map((idx) => `--- File: ${idx} # ${files[idx].path} ---\n${files[idx].content}`)
+            .join("\n\n");
+    } else {
+      fileContext = abstraction.fileIndices
+        .filter((idx) => idx >= 0 && idx < files.length)
+        .map((idx) => `--- File: ${idx} # ${files[idx].path} ---\n${files[idx].content}`)
+        .join("\n\n");
+    }
 
     const prevChapter =
       i > 0 ? chapterFilenames[chapterOrder[i - 1]] : undefined;
@@ -237,7 +260,7 @@ export async function runTutorialPipeline(
     send("status", `Writing chapter ${chapterNum} of ${chapterOrder.length}...`);
 
     const chapterContent = await ai.generate({
-      model: GEMINI_MODELS.deep,
+      model: OPENROUTER_MODELS.deep,
       messages: [
         {
           role: "user",

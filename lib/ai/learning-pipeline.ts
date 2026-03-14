@@ -15,13 +15,15 @@ import type {
   ResourceIntent,
   PriceTier,
 } from "@/types/learning";
-import { GEMINI_MODELS } from "@/lib/constants";
+import { OPENROUTER_MODELS } from "@/lib/constants";
 import { PROMPTS } from "./prompts";
-import { GeminiSchemas } from "./gemini";
+import { Schemas } from "./schemas";
+import { RAGService, formatChunksForPrompt } from "@/lib/rag";
+import type { CodeChunk } from "@/lib/rag/types";
 
 // ─── Types for raw LLM outputs ─────────────────────────────────────
 
-interface RawConcept {
+export interface RawConcept {
   name: string;
   category: string;
   relevanceScore: number;
@@ -29,14 +31,14 @@ interface RawConcept {
   moduleGroup: string;
 }
 
-interface RawGraphNode {
+export interface RawGraphNode {
   index: number;
   prerequisites: number[];
   difficulty: number;
   estimatedMinutes: number;
 }
 
-interface RawLesson {
+export interface RawLesson {
   conceptIndex: number;
   explanation: string;
   inYourCodebase: string;
@@ -44,7 +46,7 @@ interface RawLesson {
   tags: string[];
 }
 
-interface RawResource {
+export interface RawResource {
   conceptIndex: number;
   recommendations: {
     platform: string;
@@ -409,7 +411,8 @@ export async function runLearningPipeline(
   ai: AIProvider,
   input: LearningPipelineInput,
   send: (type: string, data: unknown) => void,
-  checkAborted: () => void
+  checkAborted: () => void,
+  rag?: RAGService | null
 ): Promise<LearningPathV2> {
   const {
     role,
@@ -434,7 +437,17 @@ export async function runLearningPipeline(
       ? buildAbstractionsSummary(abstractions, relationships)
       : summary || "No prior analysis available.";
 
-  const codeContext = formatCodeContextForPipeline(files);
+  let codeContext: string;
+  if (rag) {
+    const chunks = await rag.query(
+      projectId,
+      `Code related to ${role.displayName} responsibilities in this codebase`,
+      10
+    );
+    codeContext = chunks ? formatChunksForPrompt(chunks) : formatCodeContextForPipeline(files);
+  } else {
+    codeContext = formatCodeContextForPipeline(files);
+  }
 
   const codebasePatterns = [
     summary || "",
@@ -449,7 +462,7 @@ export async function runLearningPipeline(
 
   const concepts = await retryOnBadOutput(async () => {
     const result = await ai.generate({
-      model: GEMINI_MODELS.fast,
+      model: OPENROUTER_MODELS.fast,
       messages: [
         {
           role: "user",
@@ -465,7 +478,7 @@ export async function runLearningPipeline(
         },
       ],
       responseFormat: "json",
-      responseSchema: GeminiSchemas.conceptExtraction,
+      responseSchema: Schemas.conceptExtraction,
       maxTokens: 8192,
     });
     return validateConcepts(JSON.parse(result.content));
@@ -481,7 +494,7 @@ export async function runLearningPipeline(
   const { nodes: graphNodes, gapAnalysis } = await retryOnBadOutput(
     async () => {
       const result = await ai.generate({
-        model: GEMINI_MODELS.fast,
+        model: OPENROUTER_MODELS.fast,
         messages: [
           {
             role: "user",
@@ -498,7 +511,7 @@ export async function runLearningPipeline(
           },
         ],
         responseFormat: "json",
-        responseSchema: GeminiSchemas.dependencyGraph,
+        responseSchema: Schemas.dependencyGraph,
         maxTokens: 8192,
       });
       return validateGraph(JSON.parse(result.content), concepts.length);
@@ -512,9 +525,30 @@ export async function runLearningPipeline(
   send("step_start", "learning_lessons");
   send("status", "Generating lesson content...");
 
+  let lessonCodeContext = codeContext;
+  if (rag) {
+    const topConcepts = concepts.slice(0, 5);
+    const chunkResults = await Promise.all(
+      topConcepts.map((c) =>
+        rag.query(projectId, `Implementation and usage of ${c.name} in this codebase`, 6)
+      )
+    );
+    const allChunks = chunkResults.filter(Boolean).flat() as CodeChunk[];
+    const seen = new Set<string>();
+    const uniqueChunks = allChunks.filter((c) => {
+      const key = `${c.file}:${c.startLine}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (uniqueChunks.length > 0) {
+      lessonCodeContext = formatChunksForPrompt(uniqueChunks);
+    }
+  }
+
   const lessons = await retryOnBadOutput(async () => {
     const result = await ai.generate({
-      model: GEMINI_MODELS.deep,
+      model: OPENROUTER_MODELS.deep,
       messages: [
         {
           role: "user",
@@ -526,12 +560,12 @@ export async function runLearningPipeline(
               moduleGroup: c.moduleGroup,
             })),
             skillLevel,
-            codeContext,
+            codeContext: lessonCodeContext,
           }),
         },
       ],
       responseFormat: "json",
-      responseSchema: GeminiSchemas.lessonContent,
+      responseSchema: Schemas.lessonContent,
       maxTokens: 16384,
     });
     return validateLessons(JSON.parse(result.content));
@@ -557,7 +591,7 @@ export async function runLearningPipeline(
 
   const resources = await retryOnBadOutput(async () => {
     const result = await ai.generate({
-      model: GEMINI_MODELS.fast,
+      model: OPENROUTER_MODELS.fast,
       messages: [
         {
           role: "user",
@@ -568,7 +602,7 @@ export async function runLearningPipeline(
         },
       ],
       responseFormat: "json",
-      responseSchema: GeminiSchemas.resourceCuration,
+      responseSchema: Schemas.resourceCuration,
       maxTokens: 16384,
     });
     return validateResources(JSON.parse(result.content));
@@ -594,3 +628,146 @@ export async function runLearningPipeline(
 
   return learningPath;
 }
+
+// ─── Exported Step Functions (for parallel execution) ────────────────
+
+export async function extractConcepts(
+  ai: AIProvider,
+  input: LearningPipelineInput,
+  codeContext: string
+): Promise<RawConcept[]> {
+  const { role, skillLevel, techStack, abstractions, relationships, summary } = input;
+
+  const techStackList = [...techStack.languages, ...techStack.frameworks];
+
+  const abstractionsSummary =
+    abstractions && relationships
+      ? buildAbstractionsSummary(abstractions, relationships)
+      : summary || "No prior analysis available.";
+
+  return retryOnBadOutput(async () => {
+    const result = await ai.generate({
+      model: OPENROUTER_MODELS.fast,
+      messages: [
+        {
+          role: "user",
+          content: PROMPTS.extractRoleConcepts({
+            roleLabel: role.displayName,
+            roleDescription: role.custom || `${role.displayName} role`,
+            skillLevel,
+            techStack: techStackList,
+            abstractionsSummary,
+            codeContext,
+          }),
+        },
+      ],
+      responseFormat: "json",
+      responseSchema: Schemas.conceptExtraction,
+      maxTokens: 8192,
+    });
+    return validateConcepts(JSON.parse(result.content));
+  });
+}
+
+export async function buildDependencyGraph(
+  ai: AIProvider,
+  concepts: RawConcept[],
+  skillLevel: string,
+  codebasePatterns: string
+): Promise<{ nodes: RawGraphNode[]; gapAnalysis: GapAnalysis }> {
+  return retryOnBadOutput(async () => {
+    const result = await ai.generate({
+      model: OPENROUTER_MODELS.fast,
+      messages: [
+        {
+          role: "user",
+          content: PROMPTS.buildDependencyGraph({
+            concepts: concepts.map((c) => ({
+              name: c.name,
+              category: c.category,
+              relevanceScore: c.relevanceScore,
+              moduleGroup: c.moduleGroup,
+            })),
+            skillLevel,
+            codebasePatterns,
+          }),
+        },
+      ],
+      responseFormat: "json",
+      responseSchema: Schemas.dependencyGraph,
+      maxTokens: 8192,
+    });
+    return validateGraph(JSON.parse(result.content), concepts.length);
+  });
+}
+
+export async function generateLessons(
+  ai: AIProvider,
+  concepts: RawConcept[],
+  skillLevel: string,
+  codeContext: string
+): Promise<RawLesson[]> {
+  return retryOnBadOutput(async () => {
+    const result = await ai.generate({
+      model: OPENROUTER_MODELS.deep,
+      messages: [
+        {
+          role: "user",
+          content: PROMPTS.generateLessonContent({
+            concepts: concepts.map((c) => ({
+              name: c.name,
+              category: c.category,
+              fileReferences: c.fileReferences,
+              moduleGroup: c.moduleGroup,
+            })),
+            skillLevel,
+            codeContext,
+          }),
+        },
+      ],
+      responseFormat: "json",
+      responseSchema: Schemas.lessonContent,
+      maxTokens: 16384,
+    });
+    return validateLessons(JSON.parse(result.content));
+  });
+}
+
+export async function curateResources(
+  ai: AIProvider,
+  concepts: RawConcept[],
+  lessons: RawLesson[],
+  graphNodes: RawGraphNode[],
+  skillLevel: string
+): Promise<RawResource[]> {
+  const conceptsWithTags = concepts.map((c, i) => {
+    const lesson = lessons.find((l) => l.conceptIndex === i);
+    const graphNode = graphNodes.find((n) => n.index === i);
+    return {
+      name: c.name,
+      tags: lesson?.tags || [c.name.toLowerCase()],
+      difficulty: graphNode?.difficulty || 3,
+    };
+  });
+
+  return retryOnBadOutput(async () => {
+    const result = await ai.generate({
+      model: OPENROUTER_MODELS.fast,
+      messages: [
+        {
+          role: "user",
+          content: PROMPTS.curateResources({
+            concepts: conceptsWithTags,
+            skillLevel,
+          }),
+        },
+      ],
+      responseFormat: "json",
+      responseSchema: Schemas.resourceCuration,
+      maxTokens: 16384,
+    });
+    return validateResources(JSON.parse(result.content));
+  });
+}
+
+export { assembleSkillTree };
