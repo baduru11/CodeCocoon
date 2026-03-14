@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { GeminiProvider, GeminiSchemas } from "@/lib/ai/gemini";
+import { OpenRouterProvider } from "@/lib/ai/openrouter";
+import { Schemas } from "@/lib/ai/schemas";
 import { PROMPTS } from "@/lib/ai/prompts";
-import { GEMINI_MODELS } from "@/lib/constants";
+import { OPENROUTER_MODELS } from "@/lib/constants";
 import type { RepoFile } from "@/types/github";
 
 export async function POST(request: Request) {
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const ai = new GeminiProvider();
+    const ai = new OpenRouterProvider();
 
     // Create code examples from files for context
     const codeExamples = (files || [])
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
       .join("\n\n");
 
     const result = await ai.generate({
-      model: GEMINI_MODELS.deep,
+      model: OPENROUTER_MODELS.deep,
       messages: [
         {
           role: "user",
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
         },
       ],
       responseFormat: "json",
-      responseSchema: GeminiSchemas.learningPath,
+      responseSchema: Schemas.learningPath,
       maxTokens: 16384,
     });
 

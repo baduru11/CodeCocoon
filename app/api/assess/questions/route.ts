@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { GeminiProvider, GeminiSchemas } from "@/lib/ai/gemini";
+import { OpenRouterProvider } from "@/lib/ai/openrouter";
+import { Schemas } from "@/lib/ai/schemas";
 import { PROMPTS } from "@/lib/ai/prompts";
-import { GEMINI_MODELS } from "@/lib/constants";
+import { OPENROUTER_MODELS } from "@/lib/constants";
 
 export async function POST(request: Request) {
   try {
@@ -14,10 +15,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const ai = new GeminiProvider();
+    const ai = new OpenRouterProvider();
 
     const result = await ai.generate({
-      model: GEMINI_MODELS.fast,
+      model: OPENROUTER_MODELS.fast,
       messages: [
         {
           role: "user",
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
         },
       ],
       responseFormat: "json",
-      responseSchema: GeminiSchemas.quizQuestions,
+      responseSchema: Schemas.quizQuestions,
     });
 
     let questions: unknown[];
