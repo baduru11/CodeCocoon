@@ -10,6 +10,7 @@ export interface ProjectSession {
   analyzedAt: string;
   skillLevel: string;
   role?: RoleProfile;
+  ragProjectId?: string;
   projectData: FetchRepoResult;
   analysisData: AnalysisResult;
   learningPath: LearningPath;

@@ -25,6 +25,7 @@ interface ProcessingStep {
 
 export interface ProcessingResults {
   projectData?: FetchRepoResult;
+  ragProjectId?: string;
   analysis?: Partial<AnalysisResult>;
   learningPath?: LearningPath;
   exercises?: Exercise[];
@@ -122,6 +123,9 @@ export function useProcessing() {
               markStepStarted(startKey);
               break;
             }
+            case "indexing":
+              markStepDone("indexing");
+              break;
             case "files_fetched":
               markStepDone("files_fetched");
               setResults((prev) => ({
@@ -267,6 +271,7 @@ export function useProcessing() {
                 const completeData = event.data as ProcessingResults;
                 setResults((prev) => ({
                   projectData: completeData.projectData ?? prev.projectData,
+                  ragProjectId: completeData.ragProjectId ?? prev.ragProjectId,
                   analysis: completeData.analysis ?? prev.analysis,
                   learningPath: completeData.learningPath ?? prev.learningPath,
                   exercises: completeData.exercises ?? prev.exercises,

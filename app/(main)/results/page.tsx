@@ -21,6 +21,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
+import { ChatPanel } from "@/components/chat/chat-panel";
 import { SectionTabs } from "@/components/results/section-tabs";
 import { LearningPathTab } from "@/components/results/learning-path-tab";
 import { ExercisesTab } from "@/components/results/exercises-tab";
@@ -594,6 +595,21 @@ export default function ResultsPage() {
           Analyze another repo
         </Link>
       </div>
+
+      {/* Chat Panel */}
+      <ChatPanel
+        projectId={activeSession.ragProjectId || activeSession.repoName}
+        repoName={activeSession.repoName}
+        techStack={techStack}
+        architecturePattern={architecture?.pattern}
+        skillLevel={activeSession.skillLevel || "beginner"}
+        roleLabel={activeSession.role?.displayName || "Developer"}
+        conceptNames={
+          learningPath && "nodes" in learningPath
+            ? learningPath.nodes?.map((n: { name: string }) => n.name)
+            : undefined
+        }
+      />
     </div>
   );
 }
