@@ -21,8 +21,8 @@
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react" alt="React 19" />
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" alt="TypeScript 5" />
   <img src="https://img.shields.io/badge/Tailwind-v4-06B6D4?logo=tailwindcss" alt="Tailwind v4" />
-  <img src="https://img.shields.io/badge/Gemini-2.5_Flash-4285F4?logo=google" alt="Gemini 2.5 Flash" />
-  <img src="https://img.shields.io/badge/Supabase-Auth_&_DB-3FCF8E?logo=supabase" alt="Supabase" />
+  <img src="https://img.shields.io/badge/OpenRouter-Gemini_2.5-6366F1" alt="OpenRouter" />
+  <img src="https://img.shields.io/badge/Supabase-Auth_&_pgvector-3FCF8E?logo=supabase" alt="Supabase" />
   <img src="https://img.shields.io/badge/License-MIT-yellow" alt="MIT License" />
 </p>
 
@@ -44,12 +44,13 @@
 | 📖 **Tutorial** | Get beginner-friendly chapters explaining your project's core concepts with diagrams |
 | 📚 **Learn** | Personalized skill tree built from *your own code* — not generic tutorials |
 | 💪 **Practice** | 7 exercise types using snippets from your actual project |
+| 💬 **Chat** | Ask questions about your codebase and get AI answers grounded in your code |
 | 📊 **Track** | Save projects, track progress, revisit anytime |
 
 ## How It Works
 
 ```
-Paste repo URL ──→ Select files ──→ AI Pipeline (13 steps) ──→ Results
+Paste repo URL ──→ Select files ──→ AI Pipeline (14 steps) ──→ Results
      🔗               📁              🧠                         🦋
                                        │
                     ┌──────────────────┼──────────────────┐
@@ -57,15 +58,20 @@ Paste repo URL ──→ Select files ──→ AI Pipeline (13 steps) ──→
               📖 Tutorial       📚 Learning Path    💪 Exercises
             (chapters with      (skill tree with     (7 types from
              mermaid diagrams)   role presets)        your code)
+                                                          │
+                                                     💬 Chat
+                                                   (ask anything
+                                                    about your code)
 ```
 
 1. **Paste a GitHub URL** (or upload local files, or browse your repos after signing in)
 2. **Select files** to analyze and choose your **skill level** (🐛 Beginner / 🪺 Intermediate / 🦋 Advanced) and **role** (Frontend, Backend, Fullstack, DevOps, PM, QA)
-3. **Watch the AI work** — real-time SSE streaming shows each analysis step as it completes
+3. **Watch the AI work** — real-time SSE streaming shows each analysis step as it completes (many run in parallel)
 4. **Get your results** — tech stack breakdown, architecture overview, key files explained
 5. **Read the tutorial** — beginner-friendly chapters with Mermaid diagrams explaining your project's abstractions
 6. **Navigate the skill tree** — role-filtered learning path with prerequisite DAG and curated resources
-7. **Do the exercises** — 7 exercise types, all built from your project's actual code
+7. **Do the exercises** — 7 exercise types, all built from your project's actual code and aligned with your learning path
+8. **Ask questions** — chat panel lets you ask anything about your codebase, powered by RAG retrieval
 
 ---
 
@@ -77,36 +83,46 @@ graph TB
         UI[Pages & Components]
         Hooks[Custom Hooks]
         LS[localStorage]
+        Chat[Chat Panel]
     end
 
     subgraph Server["Server (Next.js 16 App Router)"]
         API[API Routes]
         SSE[SSE Stream]
+        ChatAPI[Chat API]
     end
 
     subgraph AI["AI Layer"]
-        GP[GeminiProvider]
+        OR[OpenRouterProvider]
         TP[Tutorial Pipeline]
         LP[Learning Pipeline V2]
         PR[Prompts Catalog]
     end
 
+    subgraph RAG["RAG Layer"]
+        Chunker[Tree-sitter Chunker]
+        Embedder[MiniLM-L6-v2 Embedder]
+        VecStore[(pgvector Store)]
+    end
+
     subgraph External["External Services"]
-        Gemini["Gemini 2.5 Flash Lite\n(fast/analysis)"]
-        GeminiDeep["Gemini 2.5 Flash\n(deep/generation)"]
+        OpenRouter["OpenRouter API\n(Gemini 2.5 Flash models)"]
         GitHub[GitHub API]
-        Supabase[(Supabase\nAuth + Postgres)]
+        Supabase[(Supabase\nAuth + Postgres + pgvector)]
     end
 
     UI --> Hooks --> API
     API --> SSE --> UI
-    API --> GP --> Gemini
-    API --> GP --> GeminiDeep
-    GP --> PR
+    Chat --> ChatAPI --> OR
+    ChatAPI --> VecStore
+    API --> OR --> OpenRouter
+    OR --> PR
     API --> TP
     API --> LP
-    TP --> GP
-    LP --> GP
+    TP --> OR
+    LP --> OR
+    API --> Chunker --> Embedder --> VecStore
+    VecStore --> Supabase
     API --> GitHub
     API --> Supabase
     Hooks --> LS
@@ -117,19 +133,23 @@ graph TB
 
 ## AI Pipeline
 
-The main processing pipeline runs 13 steps via SSE streaming. Each step sends real-time progress to the client.
+The main processing pipeline runs 14 steps via SSE streaming. Independent steps run in parallel for ~2x speedup. RAG indexing provides targeted code context to each step.
 
 ```mermaid
-graph LR
-    A[Fetch Files] --> B[Tech Stack]
-    B --> C[Architecture]
-    C --> D[Key Files]
-    D --> E[Tutorial Pipeline]
-    E --> F[Learning Pipeline]
+graph TB
+    A[Fetch Files] --> I[RAG Index]
+    I --> B[Tech Stack]
+    I --> C[Architecture]
+    I --> D[Key Files]
+    I --> E[Tutorial Pipeline]
+    B --> F[Learning Pipeline]
+    E --> F
     F --> G[Exercises]
     G --> H[Complete ✓]
+    C --> F
 
     style A fill:#6366F1,color:#fff
+    style I fill:#8B5CF6,color:#fff
     style B fill:#6366F1,color:#fff
     style C fill:#6366F1,color:#fff
     style D fill:#6366F1,color:#fff
@@ -142,18 +162,35 @@ graph LR
 | # | Step | Model | Output |
 |---|------|-------|--------|
 | 1 | **Fetch Files** | — | Source code from GitHub API or uploads |
-| 2 | **Tech Stack** | Flash Lite | Languages, frameworks, DBs, tools, styling |
-| 3 | **Architecture** | Flash Lite | Pattern, layers, entry points |
-| 4 | **Key Files** | Flash Lite | 8-12 most important files with roles |
-| 5 | **Tutorial: Abstractions** | Flash Lite | 5-10 core concepts (YAML) |
-| 6 | **Tutorial: Relationships** | Flash Lite | Concept graph + project summary (YAML) |
-| 7 | **Tutorial: Chapter Order** | Flash Lite | Pedagogical ordering (YAML) |
-| 8 | **Tutorial: Chapters** | Flash | N chapters with Mermaid diagrams (sequential) |
-| 9 | **Learning: Concepts** | Flash Lite | 10-20 role-filtered concepts |
-| 10 | **Learning: Dependency Graph** | Flash Lite | Prerequisite DAG + gap analysis |
-| 11 | **Learning: Lessons** | Flash | Explanations + codebase references |
-| 12 | **Learning: Resources** | Flash Lite | 3-5 curated resources per concept |
-| 13 | **Exercises** | Flash | 8 exercises across 7 types |
+| 1.5 | **RAG Index** | MiniLM-L6-v2 | Semantic chunks embedded into pgvector |
+| 2 | **Tech Stack** | `gemini-2.5-flash-lite` | Languages, frameworks, DBs, tools, styling |
+| 3 | **Architecture** | `gemini-2.5-flash-lite` | Pattern, layers, entry points |
+| 4 | **Key Files** | `gemini-2.5-flash-lite` | 8-12 most important files with roles |
+| 5 | **Tutorial: Abstractions** | `gemini-2.5-flash-lite` | 5-10 core concepts (YAML) |
+| 6 | **Tutorial: Relationships** | `gemini-2.5-flash-lite` | Concept graph + project summary (YAML) |
+| 7 | **Tutorial: Chapter Order** | `gemini-2.5-flash-lite` | Pedagogical ordering (YAML) |
+| 8 | **Tutorial: Chapters** | `gemini-2.5-flash` | N chapters with Mermaid diagrams (sequential) |
+| 9 | **Learning: Concepts** | `gemini-2.5-flash-lite` | 10-20 role-filtered concepts |
+| 10 | **Learning: Dependency Graph** | `gemini-2.5-flash-lite` | Prerequisite DAG + gap analysis |
+| 11 | **Learning: Lessons** | `gemini-2.5-flash` | Explanations + codebase references |
+| 12 | **Learning: Resources** | `gemini-2.5-flash-lite` | 3-5 curated resources per concept |
+| 13 | **Exercises** | `gemini-2.5-flash` | 8 exercises across 7 types (concept-aligned) |
+
+Steps 2-4 and 5a run in parallel (Wave 1). Exercises run after concepts, in parallel with lessons. All steps use RAG-retrieved code context instead of truncated file dumps.
+
+<details>
+<summary><strong>RAG Pipeline</strong></summary>
+
+CodeCocoon uses Retrieval-Augmented Generation to provide targeted code context to each AI step:
+
+1. **Semantic Chunking** — `web-tree-sitter` (WASM) parses code at function/class/module boundaries. Falls back to sliding-window chunking (300 lines, 50 overlap) for unsupported languages. Supports TypeScript, JavaScript, Python, Go, Java.
+2. **Embedding** — `@huggingface/transformers` with `all-MiniLM-L6-v2` (384 dimensions) runs locally in Node.js. Singleton pipeline, lazy-loaded on first use.
+3. **Vector Storage** — Supabase pgvector with HNSW index. Per-project collections via `project_id` column.
+4. **Retrieval** — Each pipeline step queries pgvector with a natural-language description of what it needs (e.g., "Main entry points, routing definitions, middleware, and application structure"). Returns topK most relevant chunks.
+
+This replaces the old approach of concatenating all files and truncating at 80k chars / 150 lines per file.
+
+</details>
 
 <details>
 <summary><strong>Tutorial Pipeline (Steps 5-8)</strong></summary>
@@ -196,9 +233,21 @@ The result is a visual skill tree with color-coded modules, prerequisite edges, 
 
 ---
 
+## Codebase Chat
+
+A collapsible chat panel on the results page lets users ask questions about their analyzed codebase. Powered by RAG retrieval + LLM:
+
+- **RAG-grounded answers** — queries pgvector for relevant code chunks before answering
+- **Context-aware** — knows the project's tech stack, architecture, skill level, role, and learning path concepts
+- **Streaming responses** — real-time SSE streaming with typing indicator
+- **File references** — shows which files were used to answer each question
+- **Skill-adapted** — adjusts explanation depth to match the user's skill level
+
+---
+
 ## Exercise System
 
-All exercises use real code snippets from the analyzed project — never generic examples.
+All exercises use real code snippets from the analyzed project — never generic examples. Exercises are aligned with the learning path concepts identified for each user.
 
 | Type | Name | What You Do |
 |------|------|-------------|
@@ -222,7 +271,9 @@ Exercises are AI-evaluated with anti-cheat detection (copy-paste detection) and 
 | **UI** | React 19 | Components, hooks, concurrent features |
 | **Language** | TypeScript 5 | Type safety across the stack |
 | **Styling** | Tailwind CSS v4 | Utility-first CSS with neo-brutalist design system |
-| **AI** | Google Gemini (`@google/genai`) | `gemini-2.5-flash-lite` (analysis) + `gemini-2.5-flash` (generation) |
+| **AI** | OpenRouter (`openai` SDK) | `gemini-2.5-flash-lite` (analysis) + `gemini-2.5-flash` (generation) via OpenRouter |
+| **RAG** | web-tree-sitter + @huggingface/transformers | Semantic chunking + local embeddings (all-MiniLM-L6-v2, 384d) |
+| **Vector DB** | Supabase pgvector (HNSW) | Code chunk storage and similarity search |
 | **Auth & DB** | Supabase | GitHub OAuth, Postgres with RLS, cookie-based SSR auth |
 | **GitHub API** | Octokit | Repo tree/file fetching with auth fallback and concurrency control |
 | **Code Editor** | CodeMirror 6 (`@uiw/react-codemirror`) | In-browser code editing with language support |
@@ -239,7 +290,8 @@ Exercises are AI-evaluated with anti-cheat detection (copy-paste detection) and 
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/api/process` | POST | Main SSE pipeline — 13 steps, returns streaming events |
+| `/api/process` | POST | Main SSE pipeline — 14 steps with parallel execution, returns streaming events |
+| `/api/chat` | POST | Codebase chat — RAG-powered Q&A with SSE streaming responses |
 | `/api/analyze` | POST | Standalone analysis (SSE stream) |
 | `/api/github/repos` | GET | List authenticated user's repos |
 | `/api/github/tree` | POST | Fetch repo file tree metadata |
@@ -260,7 +312,7 @@ Exercises are AI-evaluated with anti-cheat detection (copy-paste detection) and 
 <details>
 <summary><h2>Database Schema</h2></summary>
 
-9 tables with Row Level Security (RLS) — users can only access their own data.
+10 tables — 9 with Row Level Security (RLS), plus `code_chunks` for RAG.
 
 | Table | Purpose |
 |-------|---------|
@@ -273,6 +325,7 @@ Exercises are AI-evaluated with anti-cheat detection (copy-paste detection) and 
 | `learning_progress` | Per-user, per-lesson completion tracking |
 | `exercises` | All 7 exercise types with full metadata |
 | `exercise_attempts` | Per-user answers, correctness, and AI feedback |
+| `code_chunks` | RAG: semantic code chunks with `vector(384)` embeddings, HNSW-indexed |
 
 Supports two project sources: `github` and `upload`.
 
@@ -285,7 +338,7 @@ Supports two project sources: `github` and `upload`.
 ### Prerequisites
 
 - Node.js 18+
-- A Google Gemini API key ([get one here](https://aistudio.google.com/apikey))
+- An OpenRouter API key ([get one here](https://openrouter.ai/keys))
 - (Optional) A Supabase project for auth & persistence
 - (Optional) A GitHub personal access token for higher rate limits
 
@@ -314,7 +367,7 @@ Open [http://localhost:3000](http://localhost:3000) and paste a GitHub repo URL 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=         # Your Supabase project URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=    # Your Supabase anon key
-GEMINI_API_KEY=                   # Required — Google Gemini API key
+OPENROUTER_API_KEY=               # Required — OpenRouter API key
 GITHUB_TOKEN=                     # Optional — increases rate limit (60 → 5000 req/hr)
 ```
 
@@ -338,7 +391,7 @@ codecocoon/
 │   │   ├── connect/           # GitHub URL input or repo browser
 │   │   ├── configure/         # File selection + skill level + role
 │   │   ├── processing/        # Real-time SSE pipeline progress
-│   │   ├── results/           # Analysis + tutorial + learning + exercises
+│   │   ├── results/           # Analysis + tutorial + learning + exercises + chat
 │   │   ├── analyze/           # Standalone analysis view
 │   │   ├── learn/             # Learning path / skill tree
 │   │   ├── exercises/         # Exercise practice
@@ -346,20 +399,22 @@ codecocoon/
 │   │   ├── upload/            # Local file/folder upload
 │   │   ├── dashboard/         # Saved projects (auth required)
 │   │   └── history/           # Project history
-│   └── api/                   # 15 API routes (SSE + REST)
+│   └── api/                   # 16 API routes (SSE + REST + Chat)
 ├── components/
 │   ├── ui/                    # Design system (Button, Card, Input, etc.)
+│   ├── chat/                  # Codebase chat panel (drawer + messages)
 │   ├── layout/                # Navbar, Footer
 │   ├── landing/               # Hero, Features, How-it-works
 │   ├── results/               # SkillTree, Tutorial, LearningPath, Exercises
 │   └── exercises/             # Exercise type components
 ├── lib/
-│   ├── ai/                    # GeminiProvider, pipelines, prompts, schemas
+│   ├── ai/                    # OpenRouterProvider, pipelines, prompts, schemas
+│   ├── rag/                   # RAG pipeline: chunker, embedder, pgvector store
 │   ├── github/                # URL parser, file fetcher, filter
 │   └── supabase/              # Browser client, server client, middleware
-├── hooks/                     # useAuth, useProcessing, useAnalysis, etc.
+├── hooks/                     # useAuth, useProcessing, useChat, useAnalysis, etc.
 ├── types/                     # TypeScript types (8 modules)
-└── supabase/migrations/       # Database schema (9 tables with RLS)
+└── supabase/migrations/       # Database schema (10 tables)
 ```
 
 ---
@@ -376,10 +431,15 @@ codecocoon/
 | GitHub concurrent fetches | 5 |
 | GitHub rate limit (no token) | 60 req/hr |
 | GitHub rate limit (with token) | 5,000 req/hr |
-| Gemini max retries | 5 |
-| Gemini request gap | 7 seconds (~8.5 RPM) |
-| Prompt max lines/file | 150 (truncated) |
-| Prompt max total chars | 80,000 |
+| OpenRouter max concurrent requests | 5 |
+| OpenRouter max retries | 5 |
+| RAG embedding model | all-MiniLM-L6-v2 (384 dims) |
+| RAG max embed chars per chunk | 1,500 |
+| RAG topK per query | 6-12 (varies by step) |
+| Tree-sitter supported languages | TypeScript, JavaScript, Python, Go, Java |
+| Fallback chunking | 300 lines, 50 overlap |
+| Chat message max length | 2,000 chars |
+| Chat history max messages | 20 (most recent) |
 | Supported file extensions | 30+ (TS, JS, Python, Go, Rust, Java, and more) |
 
 </details>
@@ -399,4 +459,3 @@ Contributions are welcome! This project is in active development.
 MIT
 
 ---
-
