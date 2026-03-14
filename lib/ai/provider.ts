@@ -1,5 +1,5 @@
 export interface AIMessage {
-  role: "user" | "model";
+  role: "user" | "model" | "system";
   content: string;
 }
 

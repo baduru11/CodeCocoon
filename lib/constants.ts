@@ -90,10 +90,10 @@ export const MAX_FILE_SIZE_BYTES = 100_000; // 100KB per file
 export const MAX_TOTAL_CONTENT_BYTES = 500_000; // 500KB total
 export const FILE_SIZE_WARNING_BYTES = 50_000; // 50KB - files above this are highlighted
 
-// Gemini model names
-export const GEMINI_MODELS = {
-  fast: "gemini-2.5-flash-lite",
-  deep: "gemini-2.5-flash",
+// OpenRouter model IDs
+export const OPENROUTER_MODELS = {
+  fast: "google/gemini-2.5-flash-lite",
+  deep: "google/gemini-2.5-flash",
 } as const;
 
 // GitHub API
@@ -142,6 +142,7 @@ export const EXERCISE_TYPES = {
 // Processing steps for the processing page
 export const PROCESSING_STEPS = [
   { key: "files_fetched", label: "Fetching file contents" },
+  { key: "indexing", label: "Indexing codebase for retrieval" },
   { key: "tech_stack", label: "Detecting tech stack" },
   { key: "architecture", label: "Analyzing architecture" },
   { key: "key_files", label: "Identifying key files" },
