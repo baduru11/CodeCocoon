@@ -1,16 +1,21 @@
-import { GeminiProvider, GeminiSchemas } from "@/lib/ai/gemini";
+export const runtime = "nodejs";
+
+import { OpenRouterProvider } from "@/lib/ai/openrouter";
+import { Schemas } from "@/lib/ai/schemas";
 import { PROMPTS } from "@/lib/ai/prompts";
-import { GEMINI_MODELS } from "@/lib/constants";
+import { OPENROUTER_MODELS } from "@/lib/constants";
 import { fetchContentForFiles } from "@/lib/github/fetcher";
 import { getLanguageStats } from "@/lib/github/filter";
 import { isValidGitHubName } from "@/lib/github/parser";
 import { createClient } from "@/lib/supabase/server";
 import { runTutorialPipeline } from "@/lib/ai/tutorial-pipeline";
 import { runLearningPipeline } from "@/lib/ai/learning-pipeline";
+import { RAGService, formatChunksForPrompt } from "@/lib/rag";
 import { ROLE_PRESETS } from "@/types/learning";
-import type { RoleProfile, RolePreset } from "@/types/learning";
+import type { RoleProfile, RolePreset, LearningPathV2 } from "@/types/learning";
 import type { RepoFile } from "@/types/github";
 import type { TechStack } from "@/types/analysis";
+import type { TutorialData } from "@/types/tutorial";
 
 interface ProcessRequest {
   owner: string;
@@ -58,6 +63,57 @@ function resolveRole(input?: ProcessRequest["role"]): RoleProfile {
   };
 }
 
+// ─── Step Executor ───────────────────────────────────────────────────
+
+function createStepExecutor(
+  send: (type: string, data: unknown) => void,
+  checkAborted: () => void
+) {
+  const results = new Map<string, unknown>();
+  const resolvers = new Map<string, () => void>();
+  const promises = new Map<string, Promise<void>>();
+
+  function waitFor(name: string): Promise<void> {
+    if (results.has(name)) return Promise.resolve();
+    if (!promises.has(name)) {
+      promises.set(
+        name,
+        new Promise<void>((resolve) => {
+          resolvers.set(name, resolve);
+        })
+      );
+    }
+    return promises.get(name)!;
+  }
+
+  function resolve(name: string): void {
+    const resolver = resolvers.get(name);
+    if (resolver) resolver();
+  }
+
+  async function runStep<T>(
+    name: string,
+    deps: string[],
+    fn: () => Promise<T>
+  ): Promise<T> {
+    await Promise.all(deps.map((d) => waitFor(d)));
+    checkAborted();
+    send("step_start", name);
+    const result = await fn();
+    results.set(name, result);
+    resolve(name);
+    return result;
+  }
+
+  function getResult<T>(name: string): T {
+    return results.get(name) as T;
+  }
+
+  return { runStep, getResult };
+}
+
+// ─── Route Handler ───────────────────────────────────────────────────
+
 export async function POST(request: Request) {
   try {
     const { owner, repo, selectedFiles, skillLevel, role: roleInput, uploadedFiles } =
@@ -101,7 +157,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const ai = new GeminiProvider();
+    const ai = new OpenRouterProvider();
     const encoder = new TextEncoder();
     const signal = request.signal;
 
@@ -140,6 +196,17 @@ export async function POST(request: Request) {
           }
 
           const repoName = isUpload ? (repo || "Uploaded Project") : `${owner}/${repo}`;
+          // Unique RAG project ID — includes a hash of selected file paths
+          // to disambiguate re-analyses and uploads with the same name
+          const fileHash = files
+            .map((f) => f.path)
+            .sort()
+            .join("|")
+            .split("")
+            .reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0)
+            .toString(36);
+          const ragProjectId = `${repoName}:${fileHash}`;
+
           const projectData = {
             files,
             repoName,
@@ -154,128 +221,215 @@ export async function POST(request: Request) {
 
           checkAborted();
 
-          // Steps 2-4: Analysis (sequential to avoid rate limits)
+          // Step 1.5: RAG indexing
+          const rag = new RAGService();
+          send("step_start", "indexing");
+          send("status", "Indexing codebase for smart retrieval...");
+          try {
+            await rag.indexRepo(ragProjectId, files);
+          } catch (error) {
+            console.warn("RAG indexing failed, falling back to truncation:", error);
+            // Continue without RAG — all steps have fallback behavior
+          }
+          send("indexing", { indexed: true });
+          checkAborted();
+
           const projectName = repoName;
 
-          send("step_start", "tech_stack");
-          send("status", "Detecting tech stack...");
-          const techStackResult = await ai.generate({
-            model: GEMINI_MODELS.fast,
-            messages: [{ role: "user", content: PROMPTS.analyzeTechStack(files) }],
-            responseFormat: "json",
-            responseSchema: GeminiSchemas.techStack,
-          });
-          let techStack: TechStack;
-          try {
-            techStack = JSON.parse(techStackResult.content);
-          } catch {
-            techStack = { languages: [], frameworks: [], databases: [], tools: [], styling: [] };
-          }
-          send("tech_stack", techStack);
-          checkAborted();
+          // ── Parallel Pipeline Execution ─────────────────────────────
 
-          send("step_start", "architecture");
-          send("status", "Analyzing architecture...");
-          const archResult = await ai.generate({
-            model: GEMINI_MODELS.fast,
-            messages: [{ role: "user", content: PROMPTS.analyzeArchitecture(files) }],
-            responseFormat: "json",
-            responseSchema: GeminiSchemas.architecture,
-          });
-          let architecture: unknown;
-          try {
-            architecture = JSON.parse(archResult.content);
-          } catch {
-            architecture = { pattern: "Unknown", description: "", layers: [], entryPoints: [] };
-          }
-          send("architecture", architecture);
-          checkAborted();
+          const { runStep, getResult } = createStepExecutor(send, checkAborted);
 
-          send("step_start", "key_files");
-          send("status", "Identifying key files...");
-          const keyFilesResult = await ai.generate({
-            model: GEMINI_MODELS.fast,
-            messages: [{ role: "user", content: PROMPTS.identifyKeyFiles(files) }],
-            responseFormat: "json",
-          });
-          let keyFiles: unknown;
-          try {
-            keyFiles = JSON.parse(keyFilesResult.content);
-          } catch {
-            keyFiles = [];
-          }
-          send("key_files", keyFiles);
-          checkAborted();
+          await Promise.all([
+            // ── Wave 1: Independent steps (all need only files) ──────
 
-          // Step 5: Tutorial pipeline (sequential internally)
-          send("status", "Generating tutorial...");
-          const tutorialData = await runTutorialPipeline(ai, files, projectName, send, checkAborted);
-          send("summary", tutorialData.relationships.summary);
-          checkAborted();
+            runStep("tech_stack", [], async () => {
+              send("status", "Detecting tech stack...");
+              // RAG query for config/dependency files
+              let ragContext: string | undefined;
+              const chunks = await rag.query(
+                ragProjectId,
+                "Project configuration files declaring dependencies, frameworks, and build tools",
+                10
+              );
+              if (chunks) ragContext = formatChunksForPrompt(chunks);
 
-          // Step 6: Learning path pipeline (sequential internally, 4 steps)
-          send("status", "Building learning path...");
-          const learningPath = await runLearningPipeline(
-            ai,
-            {
-              role,
-              skillLevel: skillLevel || "beginner",
-              techStack,
-              files,
-              projectId: repoName,
-              abstractions: tutorialData.abstractions,
-              relationships: tutorialData.relationships,
-              summary: tutorialData.relationships.summary,
-              architectureJson: JSON.stringify(architecture),
-            },
-            send,
-            checkAborted
-          );
-          checkAborted();
+              const result = await ai.generate({
+                model: OPENROUTER_MODELS.fast,
+                messages: [{ role: "user", content: PROMPTS.analyzeTechStack(files, ragContext) }],
+                responseFormat: "json",
+                responseSchema: Schemas.techStack,
+              });
+              let techStack: TechStack;
+              try {
+                techStack = JSON.parse(result.content);
+              } catch {
+                techStack = { languages: [], frameworks: [], databases: [], tools: [], styling: [] };
+              }
+              send("tech_stack", techStack);
+              return techStack;
+            }),
 
-          // Step 7: Exercises (single call)
-          send("step_start", "exercises");
-          send("status", "Generating exercises...");
-          const exerciseTypes = [
-            "error_injection",
-            "code_recreation",
-            "code_explanation",
-            "mcq",
-            "output_prediction",
-            "parsons",
-            "error_message",
-          ];
-          const exercisesResult = await ai.generate({
-            model: GEMINI_MODELS.deep,
-            messages: [
-              {
-                role: "user",
-                content: PROMPTS.generateExercises(
+            runStep("architecture", [], async () => {
+              send("status", "Analyzing architecture...");
+              const chunks = await rag.query(
+                ragProjectId,
+                "Main entry points, routing definitions, middleware, and application structure",
+                10
+              );
+              const ragContext = chunks ? formatChunksForPrompt(chunks) : undefined;
+
+              const result = await ai.generate({
+                model: OPENROUTER_MODELS.fast,
+                messages: [{ role: "user", content: PROMPTS.analyzeArchitecture(files, ragContext) }],
+                responseFormat: "json",
+                responseSchema: Schemas.architecture,
+              });
+              let architecture: unknown;
+              try {
+                architecture = JSON.parse(result.content);
+              } catch {
+                architecture = { pattern: "Unknown", description: "", layers: [], entryPoints: [] };
+              }
+              send("architecture", architecture);
+              return architecture;
+            }),
+
+            runStep("key_files", [], async () => {
+              send("status", "Identifying key files...");
+              const result = await ai.generate({
+                model: OPENROUTER_MODELS.fast,
+                messages: [{ role: "user", content: PROMPTS.identifyKeyFiles(files) }],
+                responseFormat: "json",
+              });
+              let keyFiles: unknown;
+              try {
+                keyFiles = JSON.parse(result.content);
+              } catch {
+                keyFiles = [];
+              }
+              send("key_files", keyFiles);
+              return keyFiles;
+            }),
+
+            runStep("abstractions", [], async () => {
+              send("status", "Identifying core concepts...");
+              const tutorialData = await runTutorialPipeline(
+                ai,
+                files,
+                projectName,
+                send,
+                checkAborted,
+                rag
+              );
+              send("summary", tutorialData.relationships.summary);
+              return tutorialData;
+            }),
+
+            // ── Steps with dependencies ──────────────────────────────
+
+            runStep("concepts", ["abstractions", "tech_stack"], async () => {
+              send("status", "Extracting role-based concepts...");
+              const tutorialData = getResult<TutorialData>("abstractions");
+              const techStack = getResult<TechStack>("tech_stack");
+
+              const learningPath = await runLearningPipeline(
+                ai,
+                {
+                  role,
+                  skillLevel: skillLevel || "beginner",
+                  techStack,
                   files,
-                  skillLevel || "beginner",
-                  exerciseTypes
-                ),
-              },
-            ],
-            responseFormat: "json",
-            responseSchema: GeminiSchemas.exercises,
-            maxTokens: 32768,
-          });
-          let exercises: unknown;
-          try {
-            const exercisesParsed = JSON.parse(exercisesResult.content);
-            exercises = Array.isArray(exercisesParsed)
-              ? exercisesParsed
-              : exercisesParsed.exercises || [];
-          } catch (parseErr) {
-            console.error("Failed to parse exercises JSON:", parseErr, "Raw content length:", exercisesResult.content.length);
-            exercises = [];
-          }
-          send("exercises", exercises);
+                  projectId: repoName,
+                  abstractions: tutorialData.abstractions,
+                  relationships: tutorialData.relationships,
+                  summary: tutorialData.relationships.summary,
+                  architectureJson: JSON.stringify(getResult("architecture")),
+                },
+                send,
+                checkAborted,
+                rag
+              );
+              return learningPath;
+            }),
+
+            runStep("exercises", ["concepts"], async () => {
+              send("status", "Generating exercises...");
+              const learningPath = getResult<LearningPathV2>("concepts");
+              const concepts = learningPath.nodes.map((n) => ({
+                name: n.name,
+                category: n.category,
+              }));
+
+              // RAG query for exercise-relevant code
+              const conceptNames = concepts
+                .slice(0, 5)
+                .map((c) => c.name)
+                .join(", ");
+              const chunks = await rag.query(
+                ragProjectId,
+                `Code implementing ${conceptNames} with functions and logic suitable for coding exercises`,
+                10
+              );
+              const ragContext = chunks ? formatChunksForPrompt(chunks) : undefined;
+
+              const exerciseTypes = [
+                "error_injection",
+                "code_recreation",
+                "code_explanation",
+                "mcq",
+                "output_prediction",
+                "parsons",
+                "error_message",
+              ];
+
+              const prompt = ragContext
+                ? PROMPTS.generateExercisesWithConcepts(
+                    ragContext,
+                    skillLevel || "beginner",
+                    exerciseTypes,
+                    concepts,
+                    role.displayName
+                  )
+                : PROMPTS.generateExercises(
+                    files,
+                    skillLevel || "beginner",
+                    exerciseTypes
+                  );
+
+              const exercisesResult = await ai.generate({
+                model: OPENROUTER_MODELS.deep,
+                messages: [{ role: "user", content: prompt }],
+                responseFormat: "json",
+                responseSchema: Schemas.exercises,
+                maxTokens: 32768,
+              });
+
+              let exercises: unknown;
+              try {
+                const parsed = JSON.parse(exercisesResult.content);
+                exercises = Array.isArray(parsed) ? parsed : parsed.exercises || [];
+              } catch (e) {
+                console.error("Failed to parse exercises:", e);
+                exercises = [];
+              }
+              send("exercises", exercises);
+              return exercises;
+            }),
+          ]);
+
+          // Gather all results
+          const tutorialData = getResult<TutorialData>("abstractions");
+          const techStack = getResult<TechStack>("tech_stack");
+          const architecture = getResult("architecture");
+          const keyFiles = getResult("key_files");
+          const learningPath = getResult<LearningPathV2>("concepts");
+          const exercises = getResult("exercises");
 
           // Complete — send aggregated result
           send("complete", {
             projectData,
+            ragProjectId,
             analysis: {
               techStack,
               architecture,
